@@ -1,0 +1,211 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --bg: #f3f4f1;
+  --surface: #ffffff;
+  --surface-2: #e9ebe6;
+  --surface-3: #dcdfd8;
+  --text: #0d0f12;
+  --muted: #646a72;
+  --border: rgba(13, 15, 18, 0.09);
+  --accent: #6fa600;
+  --accent-strong: #5a8a00;
+  --accent-ink: #ffffff;
+  --accent-soft: rgba(111, 166, 0, 0.14);
+  --danger: #e5383b;
+  --gold: #d99a00;
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+
+.dark {
+  --bg: #0b0d10;
+  --surface: #15181d;
+  --surface-2: #1d2128;
+  --surface-3: #272c35;
+  --text: #f2f4f7;
+  --muted: #8b929c;
+  --border: rgba(255, 255, 255, 0.07);
+  --accent: #c6f432;
+  --accent-strong: #b2e21c;
+  --accent-ink: #0b0d10;
+  --accent-soft: rgba(198, 244, 50, 0.13);
+  --danger: #ff5a5f;
+  --gold: #ffc53d;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-fg: var(--text);
+  --color-muted: var(--muted);
+  --color-line: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-danger: var(--danger);
+  --color-gold: var(--gold);
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'SF Mono', ui-monospace, Menlo, monospace;
+}
+
+/* --- Comportamento "app nativa" --- */
+html,
+body {
+  height: 100%;
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+  overflow: hidden;
+}
+
+#root {
+  height: 100%;
+}
+
+input,
+textarea,
+select {
+  /* >=16px: evita lo zoom automatico di Safari al focus */
+  font-size: 16px;
+  user-select: text;
+  -webkit-user-select: text;
+  font-family: inherit;
+  color: inherit;
+}
+
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.scroll-area {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+.pt-safe {
+  padding-top: var(--safe-top);
+}
+.pb-safe {
+  padding-bottom: var(--safe-bottom);
+}
+.px-safe {
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+}
+
+/* Feedback al tocco */
+.tap {
+  transition:
+    transform 120ms ease,
+    background-color 160ms ease,
+    opacity 160ms ease;
+}
+.tap:active {
+  transform: scale(0.96);
+}
+
+/* --- Animazioni --- */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+  }
+}
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+@keyframes flash {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  15%,
+  45% {
+    opacity: 1;
+  }
+  30% {
+    opacity: 0.4;
+  }
+}
+@keyframes pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 var(--accent-soft);
+  }
+  100% {
+    box-shadow: 0 0 0 14px transparent;
+  }
+}
+
+.anim-fade {
+  animation: fade-in 180ms ease-out both;
+}
+.anim-sheet {
+  animation: slide-up 280ms cubic-bezier(0.2, 0.9, 0.25, 1) both;
+}
+.anim-pop {
+  animation: pop-in 260ms cubic-bezier(0.2, 0.9, 0.25, 1) both;
+}
+.anim-flash {
+  animation: flash 1.4s ease-out both;
+}
+.anim-pulse {
+  animation: pulse-ring 1.4s ease-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+  }
+}
