@@ -1,6 +1,6 @@
 import { db } from '../db';
 import type { Plan, Session, SetLog } from '../types';
-import { normalizeName, targetRepsMin, uid } from './utils';
+import { normalizeName, targetRepsMax, targetRepsMin, uid } from './utils';
 
 export function withSets(session: Session, sets: SetLog[]): Session {
   return { ...session, sets, exerciseKeys: [...new Set(sets.map((s) => s.exerciseKey))] };
@@ -91,11 +91,35 @@ export interface Prefill {
   weight: number | null;
   reps: number | null;
   source: 'last-session' | 'last-set' | 'target' | 'none';
+  /** Aumento di carico proposto: `weight` è già il valore aumentato */
+  progression?: { from: number; to: number; reps: number | null };
+}
+
+export interface ProgressionOptions {
+  enabled: boolean;
+  /** kg da aggiungere (es. 2,5) */
+  step: number;
+  /** serie previste oggi per l'esercizio */
+  plannedSets: number;
+}
+
+/**
+ * Progressione automatica: nell'ultima sessione sono state completate tutte le serie
+ * previste raggiungendo le rep target (il massimo del range, es. 10 per "8-10")?
+ */
+export function earnedProgression(lastSession: Session | undefined, key: string, targetReps: string, plannedSets: number): boolean {
+  if (!lastSession) return false;
+  const sets = lastSession.sets.filter((s) => s.exerciseKey === key);
+  const planned = lastSession.exercises.find((e) => e.key === key);
+  const target = targetRepsMax(planned?.reps ?? targetReps);
+  const required = planned?.sets ?? plannedSets;
+  if (target == null || sets.length === 0 || sets.length < required) return false;
+  return sets.every((s) => s.reps >= target);
 }
 
 /**
  * Valori precompilati per la serie N:
- * 1. stessa serie dell'ultima sessione con quell'esercizio
+ * 1. stessa serie dell'ultima sessione con quell'esercizio (+ incremento se guadagnato)
  * 2. altrimenti l'ultima serie registrata (anche nella sessione corrente)
  * 3. altrimenti peso vuoto e rep target
  */
@@ -105,15 +129,30 @@ export function computePrefill(
   key: string,
   currentSets: SetLog[],
   targetReps: string,
+  progression?: ProgressionOptions,
 ): Prefill {
   const lastSets = lastSession?.sets.filter((s) => s.exerciseKey === key) ?? [];
-  const match = lastSets.find((s) => s.setNumber === setNumber);
-  if (match) return { weight: match.weight, reps: match.reps, source: 'last-session' };
+  const earned =
+    !!progression?.enabled && progression.step > 0 && earnedProgression(lastSession, key, targetReps, progression.plannedSets);
 
-  const candidates = [...currentSets.filter((s) => s.exerciseKey === key), ...lastSets].sort(
-    (a, b) => b.timestamp - a.timestamp,
-  );
-  if (candidates[0]) return { weight: candidates[0].weight, reps: candidates[0].reps, source: 'last-set' };
+  const bump = (from: SetLog, source: Prefill['source']): Prefill => {
+    if (earned && from.weight > 0) {
+      const to = Math.round((from.weight + progression!.step) * 100) / 100;
+      // con il nuovo carico si riparte dal minimo del range
+      const reps = targetRepsMin(targetReps) ?? from.reps;
+      return { weight: to, reps, source, progression: { from: from.weight, to, reps: from.reps } };
+    }
+    return { weight: from.weight, reps: from.reps, source };
+  };
+
+  const match = lastSets.find((s) => s.setNumber === setNumber);
+  if (match) return bump(match, 'last-session');
+
+  const current = currentSets.filter((s) => s.exerciseKey === key).sort((a, b) => b.timestamp - a.timestamp);
+  // nella sessione corrente il peso è già quello scelto oggi: niente ulteriore aumento
+  if (current[0]) return { weight: current[0].weight, reps: current[0].reps, source: 'last-set' };
+  const prev = lastSets.slice().sort((a, b) => b.timestamp - a.timestamp)[0];
+  if (prev) return bump(prev, 'last-set');
 
   const t = targetRepsMin(targetReps);
   return { weight: null, reps: t, source: t ? 'target' : 'none' };

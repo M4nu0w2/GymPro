@@ -1,6 +1,7 @@
 import { createContext, type ReactNode, useCallback, useContext, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '../lib/utils';
+import { IconCheck, IconX } from './Icons';
 import { Button } from './ui';
 
 interface ConfirmOptions {
@@ -49,15 +50,15 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
       {children}
       {dialog &&
         createPortal(
-          <div className="fixed inset-0 z-[70] flex items-center justify-center p-6">
-            <div className="anim-fade absolute inset-0 bg-black/60" onClick={() => close(false)} />
-            <div role="alertdialog" className="anim-pop relative w-full max-w-sm rounded-[28px] bg-surface p-6 shadow-2xl">
-              <h2 className="text-xl font-bold">{dialog.title}</h2>
-              {dialog.message && <p className="mt-2 text-[15px] leading-relaxed text-muted">{dialog.message}</p>}
-              <div className="mt-6 grid grid-cols-2 gap-3">
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-8">
+            <div className="anim-fade absolute inset-0 bg-[var(--dim)]" onClick={() => close(false)} />
+            <div role="alertdialog" aria-label={dialog.title} className="glass-thick anim-scale relative w-full max-w-[300px] rounded-[30px] p-5 pt-6 text-center shadow-2xl">
+              <h2 className="text-[17px] leading-snug font-semibold">{dialog.title}</h2>
+              {dialog.message && <p className="mt-1.5 text-[14px] leading-snug text-fg-2">{dialog.message}</p>}
+              <div className="mt-5 grid grid-cols-2 gap-2.5">
                 <Button onClick={() => close(false)}>{dialog.cancelLabel ?? 'Annulla'}</Button>
                 <Button
-                  variant={dialog.danger ? 'danger' : 'primary'}
+                  variant={dialog.danger ? 'secondary' : 'primary'}
                   className={dialog.danger ? '!bg-danger !text-white' : ''}
                   onClick={() => close(true)}
                 >
@@ -70,15 +71,21 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
         )}
       {toastState &&
         createPortal(
-          <div className="pointer-events-none fixed inset-x-0 top-0 z-[80] flex justify-center pt-[calc(var(--safe-top)+10px)] px-4">
+          <div className="pointer-events-none fixed inset-x-0 top-0 z-[80] flex justify-center px-4 pt-[calc(var(--safe-top)+8px)]">
             <div
               key={toastState.id}
-              className={cn(
-                'anim-pop rounded-2xl px-4 py-3 text-sm font-semibold shadow-xl',
-                toastState.kind === 'error' ? 'bg-danger text-white' : 'bg-fg text-bg',
-              )}
+              role="status"
+              className="glass anim-pop flex max-w-full items-center gap-2 rounded-full py-2.5 pr-5 pl-3 text-[15px] font-semibold"
             >
-              {toastState.msg}
+              <span
+                className={cn(
+                  'flex h-6 w-6 shrink-0 items-center justify-center rounded-full',
+                  toastState.kind === 'error' ? 'bg-danger text-white' : 'bg-accent text-accent-ink',
+                )}
+              >
+                {toastState.kind === 'error' ? <IconX size={14} strokeWidth={3} /> : <IconCheck size={14} strokeWidth={3} />}
+              </span>
+              <span className="truncate">{toastState.msg}</span>
             </div>
           </div>,
           document.body,

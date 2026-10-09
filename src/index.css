@@ -2,41 +2,80 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/*
+ * Colori semantici in stile iOS (systemGroupedBackground, label, separator, fill…)
+ * con un solo colore accento. Il tema segue il sistema (vedi lib/settings.ts).
+ */
 :root {
-  --bg: #f3f4f1;
+  --bg: #f2f2f7;
   --surface: #ffffff;
-  --surface-2: #e9ebe6;
-  --surface-3: #dcdfd8;
-  --text: #0d0f12;
-  --muted: #646a72;
-  --border: rgba(13, 15, 18, 0.09);
-  --accent: #6fa600;
-  --accent-strong: #5a8a00;
+  --surface-2: rgba(118, 118, 128, 0.12);
+  --surface-3: rgba(118, 118, 128, 0.2);
+  --elevated: #ffffff;
+  --text: #000000;
+  --text-2: rgba(60, 60, 67, 0.85);
+  --muted: rgba(60, 60, 67, 0.6);
+  --faint: rgba(60, 60, 67, 0.3);
+  --border: rgba(60, 60, 67, 0.16);
+  --accent: #4a9400;
+  --accent-strong: #3d7a00;
   --accent-ink: #ffffff;
-  --accent-soft: rgba(111, 166, 0, 0.14);
-  --danger: #e5383b;
-  --gold: #d99a00;
+  --accent-soft: rgba(74, 148, 0, 0.13);
+  --danger: #ff3b30;
+  --gold: #f59e0b;
+  --gold-soft: rgba(245, 158, 11, 0.14);
+
+  /* Materiali "vetro" */
+  --material: rgba(250, 250, 252, 0.86);
+  --material-thick: rgba(246, 246, 250, 0.95);
+  --glass-border: rgba(255, 255, 255, 0.65);
+  --glass-edge: rgba(0, 0, 0, 0.06);
+  --glass-shadow: 0 10px 30px -12px rgba(0, 0, 0, 0.18), 0 1px 3px rgba(0, 0, 0, 0.06);
+  --dim: rgba(0, 0, 0, 0.28);
 
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
+
+  /* Curve: "spring" smorzata tipo UIKit; il fallback è la curva dei sheet iOS */
+  --ease-ios: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-spring: cubic-bezier(0.34, 1.36, 0.64, 1);
+  --tabbar-h: 64px;
+  color-scheme: light;
+}
+
+@supports (animation-timing-function: linear(0, 1)) {
+  :root {
+    --ease-spring: linear(0, 0.157 3.2%, 0.519 8.4%, 0.765 12.5%, 0.928 17.2%, 1.025 22.3%, 1.064 27.3%, 1.069 31.1%, 1.056 36.1%, 1.012 47.8%, 0.998 57.4%, 0.996 68.4%, 1);
+  }
 }
 
 .dark {
-  --bg: #0b0d10;
-  --surface: #15181d;
-  --surface-2: #1d2128;
-  --surface-3: #272c35;
-  --text: #f2f4f7;
-  --muted: #8b929c;
-  --border: rgba(255, 255, 255, 0.07);
-  --accent: #c6f432;
-  --accent-strong: #b2e21c;
-  --accent-ink: #0b0d10;
-  --accent-soft: rgba(198, 244, 50, 0.13);
-  --danger: #ff5a5f;
-  --gold: #ffc53d;
+  --bg: #000000;
+  --surface: #1c1c1e;
+  --surface-2: rgba(118, 118, 128, 0.24);
+  --surface-3: rgba(118, 118, 128, 0.36);
+  --elevated: #2c2c2e;
+  --text: #ffffff;
+  --text-2: rgba(235, 235, 245, 0.85);
+  --muted: rgba(235, 235, 245, 0.6);
+  --faint: rgba(235, 235, 245, 0.3);
+  --border: rgba(84, 84, 88, 0.55);
+  --accent: #b5f23d;
+  --accent-strong: #a3e02a;
+  --accent-ink: #0a0f00;
+  --accent-soft: rgba(181, 242, 61, 0.16);
+  --danger: #ff453a;
+  --gold: #ffb340;
+  --gold-soft: rgba(255, 179, 64, 0.16);
+
+  --material: rgba(30, 30, 32, 0.84);
+  --material-thick: rgba(28, 28, 30, 0.95);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-edge: rgba(0, 0, 0, 0.4);
+  --glass-shadow: 0 12px 34px -12px rgba(0, 0, 0, 0.7), 0 1px 3px rgba(0, 0, 0, 0.4);
+  --dim: rgba(0, 0, 0, 0.5);
   color-scheme: dark;
 }
 
@@ -45,8 +84,11 @@
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
   --color-surface-3: var(--surface-3);
+  --color-elevated: var(--elevated);
   --color-fg: var(--text);
+  --color-fg-2: var(--text-2);
   --color-muted: var(--muted);
+  --color-faint: var(--faint);
   --color-line: var(--border);
   --color-accent: var(--accent);
   --color-accent-strong: var(--accent-strong);
@@ -54,8 +96,10 @@
   --color-accent-soft: var(--accent-soft);
   --color-danger: var(--danger);
   --color-gold: var(--gold);
-  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', 'Segoe UI', Roboto, sans-serif;
-  --font-mono: 'SF Mono', ui-monospace, Menlo, monospace;
+  --color-gold-soft: var(--gold-soft);
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --font-rounded: ui-rounded, 'SF Pro Rounded', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
 }
 
 /* --- Comportamento "app nativa" --- */
@@ -71,6 +115,8 @@ body {
 
 body {
   font-family: var(--font-sans);
+  font-size: 17px;
+  letter-spacing: -0.012em;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
   -webkit-touch-callout: none;
@@ -88,7 +134,7 @@ input,
 textarea,
 select {
   /* >=16px: evita lo zoom automatico di Safari al focus */
-  font-size: 16px;
+  font-size: 17px;
   user-select: text;
   -webkit-user-select: text;
   font-family: inherit;
@@ -101,19 +147,31 @@ input[type='number']::-webkit-outer-spin-button {
   margin: 0;
 }
 
+input[type='date'] {
+  -webkit-appearance: none;
+  appearance: none;
+  min-height: 1.4em;
+}
+
 button {
   font-family: inherit;
   cursor: pointer;
 }
 
+/* Numeri importanti: cifre tabulari, font arrotondato di sistema */
 .num {
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
 }
+.rounded-num {
+  font-family: var(--font-rounded);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+}
 
 .scroll-area {
   overflow-y: auto;
-  overscroll-behavior: contain;
+  overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
 }
 
@@ -134,16 +192,65 @@ button {
   padding-left: var(--safe-left);
   padding-right: var(--safe-right);
 }
+/* spazio sotto i contenuti per la tab bar flottante */
+.pb-tabbar {
+  padding-bottom: calc(var(--tabbar-h) + max(var(--safe-bottom), 12px) + 24px);
+}
+
+/*
+ * Materiale vetro. Usato SOLO su poche superfici (tab bar, header compatto, sheet,
+ * banner): il blur è costoso su Safari, quindi niente card sfocate dentro le liste.
+ */
+.glass {
+  background: var(--material);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
+  box-shadow:
+    inset 0 0.5px 0 var(--glass-border),
+    0 0 0 0.5px var(--glass-edge),
+    var(--glass-shadow);
+}
+.glass-thick {
+  background: var(--material-thick);
+  -webkit-backdrop-filter: blur(30px) saturate(190%);
+  backdrop-filter: blur(30px) saturate(190%);
+}
+.glass-bar {
+  background: var(--material);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  box-shadow: 0 0.5px 0 var(--border);
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass,
+  .glass-bar {
+    background: var(--material-thick);
+  }
+}
+
+.hairline {
+  box-shadow: inset 0 -0.5px 0 var(--border);
+}
 
 /* Feedback al tocco */
 .tap {
   transition:
-    transform 120ms ease,
+    transform 380ms var(--ease-spring),
     background-color 160ms ease,
     opacity 160ms ease;
+  will-change: transform;
 }
 .tap:active {
   transform: scale(0.96);
+  opacity: 0.85;
+  transition-duration: 90ms;
+}
+.tap-row {
+  transition: background-color 180ms ease;
+}
+.tap-row:active {
+  background-color: var(--surface-3);
+  transition-duration: 0ms;
 }
 
 /* --- Animazioni --- */
@@ -152,28 +259,61 @@ button {
     opacity: 0;
   }
 }
-@keyframes slide-up {
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes sheet-in {
   from {
-    transform: translateY(100%);
+    transform: translate3d(0, 100%, 0);
+  }
+}
+@keyframes sheet-out {
+  to {
+    transform: translate3d(0, 100%, 0);
   }
 }
 @keyframes pop-in {
   from {
     opacity: 0;
-    transform: translateY(8px) scale(0.98);
+    transform: translate3d(0, 10px, 0) scale(0.97);
   }
 }
-@keyframes flash {
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+@keyframes screen-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+}
+@keyframes banner-in {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -120%, 0) scale(0.96);
+  }
+  14%,
+  82% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(0, -120%, 0) scale(0.96);
+  }
+}
+@keyframes glow {
   0%,
   100% {
     opacity: 0;
   }
-  15%,
-  45% {
+  20% {
     opacity: 1;
-  }
-  30% {
-    opacity: 0.4;
   }
 }
 @keyframes pulse-ring {
@@ -184,21 +324,78 @@ button {
     box-shadow: 0 0 0 14px transparent;
   }
 }
+@keyframes confetti {
+  0% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--dx), var(--dy), 0) rotate(var(--rot)) scale(0.6);
+  }
+}
+@keyframes trophy {
+  0% {
+    opacity: 0;
+    transform: scale(0.4) rotate(-12deg);
+  }
+  30% {
+    opacity: 1;
+    transform: scale(1.08) rotate(3deg);
+  }
+  45% {
+    transform: scale(1) rotate(0);
+  }
+  85% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+}
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
 
 .anim-fade {
-  animation: fade-in 180ms ease-out both;
+  animation: fade-in 220ms ease-out both;
+}
+.anim-fade-out {
+  animation: fade-out 220ms ease-in both;
 }
 .anim-sheet {
-  animation: slide-up 280ms cubic-bezier(0.2, 0.9, 0.25, 1) both;
+  animation: sheet-in 460ms var(--ease-ios) both;
+}
+.anim-sheet-out {
+  animation: sheet-out 260ms cubic-bezier(0.4, 0, 1, 1) both;
 }
 .anim-pop {
-  animation: pop-in 260ms cubic-bezier(0.2, 0.9, 0.25, 1) both;
+  animation: pop-in 480ms var(--ease-spring) both;
 }
-.anim-flash {
-  animation: flash 1.4s ease-out both;
+.anim-scale {
+  animation: scale-in 420ms var(--ease-spring) both;
+}
+.anim-screen {
+  animation: screen-in 320ms var(--ease-ios) both;
+}
+.anim-banner {
+  animation: banner-in 3.2s var(--ease-ios) both;
+}
+.anim-glow {
+  animation: glow 1.2s ease-out both;
 }
 .anim-pulse {
-  animation: pulse-ring 1.4s ease-out infinite;
+  animation: pulse-ring 1.6s ease-out infinite;
+}
+.anim-trophy {
+  animation: trophy 2.4s var(--ease-ios) both;
+}
+.confetti-piece {
+  animation: confetti 1.6s cubic-bezier(0.15, 0.6, 0.35, 1) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -208,4 +405,23 @@ button {
     animation-duration: 1ms !important;
     transition-duration: 1ms !important;
   }
+}
+
+/* Pagine dell'allenamento: swipe orizzontale nativo con scroll-snap (fluido, nessun JS sul gesto) */
+.pager {
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.pager::-webkit-scrollbar {
+  display: none;
+}
+.pager > * {
+  flex: 0 0 100%;
+  scroll-snap-align: center;
+  scroll-snap-stop: always;
 }

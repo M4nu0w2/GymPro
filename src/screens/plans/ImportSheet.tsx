@@ -1,22 +1,39 @@
 import { useState } from 'react';
-import { IconFile, IconUpload } from '../../components/Icons';
-import { Button, Sheet } from '../../components/ui';
+import { IconDownload, IconFile, IconLink, IconUpload } from '../../components/Icons';
+import { Button, Row, RowIcon, Segmented, Sheet, inputCls } from '../../components/ui';
 import { useFeedback } from '../../components/Feedback';
 import { db } from '../../db';
 import { importPlansFromJson } from '../../lib/backup';
 import { type ImportResult, importPlansFromCsv } from '../../lib/csv';
+import { MUSCLE_LABEL, mergeMuscles } from '../../lib/exercises';
 import { pickTextFile } from '../../lib/files';
-import { fmtRest } from '../../lib/utils';
+import { decodePlan, extractShareCode } from '../../lib/share';
+import { fmtRest, normalizeName } from '../../lib/utils';
 import type { Plan } from '../../types';
 
-export function ImportSheet({ open, onClose, existing }: { open: boolean; onClose: () => void; existing: Plan[] }) {
+type Mode = 'file' | 'link';
+
+export function ImportSheet({
+  open,
+  onClose,
+  existing,
+  onTemplate,
+}: {
+  open: boolean;
+  onClose: () => void;
+  existing: Plan[];
+  onTemplate: () => void;
+}) {
+  const [mode, setMode] = useState<Mode>('file');
   const [fileName, setFileName] = useState<string | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
+  const [link, setLink] = useState('');
   const { toast } = useFeedback();
 
   const reset = () => {
     setFileName(null);
     setResult(null);
+    setLink('');
   };
 
   const pick = async () => {
@@ -26,18 +43,44 @@ export function ImportSheet({ open, onClose, existing }: { open: boolean; onClos
     const isJson = f.name.toLowerCase().endsWith('.json') || f.text.trimStart().startsWith('{') || f.text.trimStart().startsWith('[');
     if (isJson) {
       try {
-        setResult({ plans: importPlansFromJson(f.text), errors: [], warnings: [] });
+        setResult({ plans: importPlansFromJson(f.text), errors: [], warnings: [], muscles: [] });
       } catch (e) {
-        setResult({ plans: [], errors: [{ row: 0, message: (e as Error).message }], warnings: [] });
+        setResult({ plans: [], errors: [{ row: 0, message: (e as Error).message }], warnings: [], muscles: [] });
       }
     } else {
       setResult(importPlansFromCsv(f.text));
     }
   };
 
+  const readLink = (text: string) => {
+    setLink(text);
+    if (!text.trim()) return setResult(null);
+    const code = extractShareCode(text);
+    if (!code) {
+      setResult({ plans: [], errors: [{ row: 0, message: 'Non sembra un link di GymPro.' }], warnings: [], muscles: [] });
+      return;
+    }
+    try {
+      const d = decodePlan(code);
+      setFileName('Link condiviso');
+      setResult({ plans: [d.plan], errors: [], warnings: [], muscles: d.muscles });
+    } catch (e) {
+      setResult({ plans: [], errors: [{ row: 0, message: (e as Error).message }], warnings: [], muscles: [] });
+    }
+  };
+
+  const paste = async () => {
+    try {
+      readLink(await navigator.clipboard.readText());
+    } catch {
+      toast('Incolla il link nel campo di testo', 'error');
+    }
+  };
+
   const confirmImport = async () => {
     if (!result || result.errors.length || !result.plans.length) return;
     await db.plans.bulkAdd(result.plans);
+    await mergeMuscles(result.muscles);
     toast(`${result.plans.length} ${result.plans.length === 1 ? 'scheda importata' : 'schede importate'}`);
     reset();
     onClose();
@@ -45,6 +88,7 @@ export function ImportSheet({ open, onClose, existing }: { open: boolean; onClos
 
   const existingNames = new Set(existing.map((p) => p.name.toLowerCase()));
   const canImport = !!result && result.errors.length === 0 && result.plans.length > 0;
+  const muscleOf = (name: string) => result?.muscles.find((m) => normalizeName(m.name) === normalizeName(name))?.muscle;
 
   return (
     <Sheet
@@ -56,9 +100,11 @@ export function ImportSheet({ open, onClose, existing }: { open: boolean; onClos
       title="Importa schede"
       footer={
         result ? (
-          <div className="grid grid-cols-2 gap-3">
-            <Button onClick={pick}>Altro file</Button>
-            <Button variant="primary" disabled={!canImport} onClick={confirmImport}>
+          <div className="grid grid-cols-2 gap-2.5">
+            <Button size="lg" onClick={reset}>
+              Indietro
+            </Button>
+            <Button size="lg" variant="primary" disabled={!canImport} onClick={confirmImport}>
               Importa
             </Button>
           </div>
@@ -66,31 +112,62 @@ export function ImportSheet({ open, onClose, existing }: { open: boolean; onClos
       }
     >
       {!result ? (
-        <div className="space-y-4 py-2">
-          <p className="text-[15px] leading-relaxed text-muted">
-            Seleziona un file <b className="text-fg">CSV</b> (separatore <code>;</code> o <code>,</code>) con le colonne:
-          </p>
-          <code className="block rounded-2xl bg-surface-2 p-4 text-[13px] break-all text-fg">
-            scheda;esercizio;serie;rep;recupero_sec;note
-          </code>
-          <p className="text-sm text-muted">Puoi anche importare schede da un file JSON (esportato da GymPro). Vedrai un'anteprima prima di confermare.</p>
-          <Button variant="primary" size="lg" className="w-full" onClick={pick}>
-            <IconUpload /> Scegli file
-          </Button>
+        <div className="space-y-4 pb-2">
+          <Segmented
+            value={mode}
+            onChange={setMode}
+            options={[
+              { value: 'file', label: 'Da file' },
+              { value: 'link', label: 'Da link' },
+            ]}
+          />
+          {mode === 'file' ? (
+            <>
+              <p className="px-1 text-[15px] leading-snug text-fg-2">
+                File <b>CSV</b> (separatore <code>;</code> o <code>,</code>) con le colonne:
+              </p>
+              <code className="block rounded-[18px] bg-surface p-4 text-[13px] break-all">scheda;esercizio;serie;rep;recupero_sec;note;muscolo</code>
+              <p className="px-1 text-[13px] text-muted">
+                La colonna <b>muscolo</b> è facoltativa (petto, dorso, spalle, bicipiti, tricipiti, gambe, glutei, addome, altro): i file senza funzionano come prima. Puoi anche importare un JSON esportato da GymPro.
+              </p>
+              <Button variant="primary" size="lg" className="w-full" onClick={pick}>
+                <IconUpload size={18} /> Scegli file
+              </Button>
+              <div className="overflow-hidden rounded-[22px] bg-surface">
+                <Row icon={<RowIcon className="bg-[#8e8e93] text-white"><IconDownload size={17} /></RowIcon>} title="Scarica template CSV" onClick={onTemplate} />
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="px-1 text-[15px] leading-snug text-fg-2">Incolla il link di una scheda condivisa da GymPro.</p>
+              <textarea
+                className={inputCls + ' !h-28 resize-none py-3 text-[15px]'}
+                placeholder="https://…#scheda=…"
+                value={link}
+                onChange={(e) => readLink(e.target.value)}
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
+              />
+              <Button variant="primary" size="lg" className="w-full" onClick={paste}>
+                <IconLink size={18} /> Incolla dagli appunti
+              </Button>
+            </>
+          )}
         </div>
       ) : (
-        <div className="space-y-4 py-2">
-          <div className="flex items-center gap-3 rounded-2xl bg-surface-2 p-3">
+        <div className="space-y-4 pb-2">
+          <div className="flex items-center gap-3 rounded-[18px] bg-surface p-3">
             <IconFile className="text-muted" />
-            <span className="min-w-0 flex-1 truncate text-sm font-semibold">{fileName}</span>
+            <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{fileName ?? 'Link'}</span>
           </div>
 
           {result.errors.length > 0 && (
-            <div className="rounded-2xl border border-danger/40 bg-danger/10 p-4">
-              <p className="font-bold text-danger">
-                {result.errors.length} {result.errors.length === 1 ? 'errore' : 'errori'} — correggi il file e riprova
+            <div className="rounded-[18px] bg-danger/10 p-4">
+              <p className="font-semibold text-danger">
+                {result.errors.length} {result.errors.length === 1 ? 'errore' : 'errori'} — correggi e riprova
               </p>
-              <ul className="mt-2 space-y-1.5 text-sm">
+              <ul className="mt-2 space-y-1.5 text-[15px]">
                 {result.errors.slice(0, 30).map((e, i) => (
                   <li key={i}>
                     {e.row > 0 && <b className="num">Riga {e.row}: </b>}
@@ -103,8 +180,8 @@ export function ImportSheet({ open, onClose, existing }: { open: boolean; onClos
           )}
 
           {result.warnings.length > 0 && result.errors.length === 0 && (
-            <div className="rounded-2xl border border-gold/40 bg-gold/10 p-4 text-sm">
-              <p className="font-bold text-gold">Avvisi</p>
+            <div className="rounded-[18px] bg-gold-soft p-4 text-[15px]">
+              <p className="font-semibold text-gold">Avvisi</p>
               <ul className="mt-1 space-y-1">
                 {result.warnings.slice(0, 10).map((w, i) => (
                   <li key={i}>
@@ -117,24 +194,20 @@ export function ImportSheet({ open, onClose, existing }: { open: boolean; onClos
 
           {result.errors.length === 0 &&
             result.plans.map((p) => (
-              <div key={p.id} className="rounded-3xl border border-line bg-surface p-4">
-                <div className="flex items-baseline justify-between gap-2">
-                  <h3 className="truncate text-lg font-bold">{p.name}</h3>
-                  <span className="shrink-0 text-xs text-muted">{p.exercises.length} esercizi</span>
+              <div key={p.id}>
+                <div className="flex items-baseline justify-between gap-2 px-4 pb-1.5">
+                  <h3 className="truncate text-[17px] font-semibold">{p.name}</h3>
+                  <span className="shrink-0 text-[13px] text-muted">{p.exercises.length} esercizi</span>
                 </div>
                 {existingNames.has(p.name.toLowerCase()) && (
-                  <p className="mt-1 text-xs font-medium text-gold">Esiste già una scheda con questo nome: verrà aggiunta come nuova.</p>
+                  <p className="px-4 pb-1.5 text-[13px] text-gold">Esiste già una scheda con questo nome: verrà aggiunta come nuova.</p>
                 )}
-                <ul className="mt-3 divide-y divide-line">
-                  {p.exercises.map((e) => (
-                    <li key={e.id} className="flex items-center justify-between gap-3 py-2 text-sm">
-                      <span className="min-w-0 truncate font-medium">{e.name}</span>
-                      <span className="num shrink-0 text-muted">
-                        {e.sets}×{e.reps} · {fmtRest(e.restSec)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
+                <div className="overflow-hidden rounded-[22px] bg-surface">
+                  {p.exercises.map((e) => {
+                    const m = muscleOf(e.name);
+                    return <Row key={e.id} title={e.name} subtitle={m ? MUSCLE_LABEL[m] : undefined} value={`${e.sets}×${e.reps} · ${fmtRest(e.restSec)}`} />;
+                  })}
+                </div>
               </div>
             ))}
         </div>

@@ -1,15 +1,16 @@
-import type { Plan, PlanExercise } from '../types';
+import type { Muscle, Plan, PlanExercise } from '../types';
+import { parseMuscle } from './exercises';
 import { REPS_PATTERN, cleanReps, uid } from './utils';
 
-export const CSV_HEADERS = ['scheda', 'esercizio', 'serie', 'rep', 'recupero_sec', 'note'] as const;
+export const CSV_HEADERS = ['scheda', 'esercizio', 'serie', 'rep', 'recupero_sec', 'note', 'muscolo'] as const;
 
 export const CSV_TEMPLATE = [
   CSV_HEADERS.join(';'),
-  'Push A;Panca piana;4;8-10;120;Fermo al petto',
-  'Push A;Military press;3;8;90;',
-  'Push A;Croci ai cavi;3;12-15;60;Lento in negativa',
-  'Pull A;Trazioni;4;6-8;150;',
-  'Pull A;Rematore bilanciere;4;8;120;',
+  'Push A;Panca piana;4;8-10;120;Fermo al petto;petto',
+  'Push A;Military press;3;8;90;;spalle',
+  'Push A;Croci ai cavi;3;12-15;60;Lento in negativa;petto',
+  'Pull A;Trazioni;4;6-8;150;;dorso',
+  'Pull A;Rematore bilanciere;4;8;120;;dorso',
 ].join('\r\n');
 
 /** Rileva il separatore guardando la riga di intestazione */
@@ -74,6 +75,8 @@ export interface ImportResult {
   plans: Plan[];
   errors: ImportIssue[];
   warnings: ImportIssue[];
+  /** Gruppi muscolari indicati nella colonna opzionale "muscolo" */
+  muscles: { name: string; muscle?: Muscle }[];
 }
 
 const DEFAULT_REST = 90;
@@ -81,10 +84,11 @@ const DEFAULT_REST = 90;
 export function importPlansFromCsv(text: string): ImportResult {
   const errors: ImportIssue[] = [];
   const warnings: ImportIssue[] = [];
+  const muscles: ImportResult['muscles'] = [];
   const rows = parseCsv(text);
 
   if (rows.length === 0 || rows.every((r) => r.every((c) => c.trim() === ''))) {
-    return { plans: [], errors: [{ row: 1, message: 'Il file è vuoto.' }], warnings };
+    return { plans: [], errors: [{ row: 1, message: 'Il file è vuoto.' }], warnings, muscles };
   }
 
   const header = rows[0].map((h) => h.trim().toLowerCase());
@@ -100,6 +104,7 @@ export function importPlansFromCsv(text: string): ImportResult {
         },
       ],
       warnings,
+      muscles,
     };
   }
 
@@ -120,6 +125,7 @@ export function importPlansFromCsv(text: string): ImportResult {
     const repsStr = cleanReps(get('rep'));
     const restStr = get('recupero_sec');
     const notes = get('note');
+    const muscleStr = get('muscolo');
 
     const rowErrors: string[] = [];
     if (!planName) rowErrors.push('nome scheda mancante');
@@ -156,13 +162,18 @@ export function importPlansFromCsv(text: string): ImportResult {
     }
     const ex: PlanExercise = { id: uid(), name: exName, sets, reps, restSec };
     if (notes) ex.notes = notes;
+    if (muscleStr) {
+      const muscle = parseMuscle(muscleStr);
+      if (muscle) muscles.push({ name: exName, muscle });
+      else warnings.push({ row: line, message: `muscolo "${muscleStr}" non riconosciuto, ignorato` });
+    }
     plan.exercises.push(ex);
   });
 
   if (byName.size === 0 && errors.length === 0) {
     errors.push({ row: 2, message: 'Nessun esercizio trovato nel file.' });
   }
-  return { plans: [...byName.values()], errors, warnings };
+  return { plans: [...byName.values()], errors, warnings, muscles };
 }
 
 function csvField(v: string, delim: string): string {
@@ -170,12 +181,12 @@ function csvField(v: string, delim: string): string {
 }
 
 /** Esporta le schede nello stesso formato del template */
-export function plansToCsv(plans: Plan[]): string {
+export function plansToCsv(plans: Plan[], muscleOf: (name: string) => string | undefined = () => undefined): string {
   const lines: string[] = [CSV_HEADERS.join(';')];
   for (const p of plans) {
     for (const e of p.exercises) {
       lines.push(
-        [p.name, e.name, String(e.sets), e.reps, String(e.restSec), e.notes ?? ''].map((v) => csvField(v, ';')).join(';'),
+        [p.name, e.name, String(e.sets), e.reps, String(e.restSec), e.notes ?? '', muscleOf(e.name) ?? ''].map((v) => csvField(v, ';')).join(';'),
       );
     }
   }

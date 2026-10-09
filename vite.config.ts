@@ -26,8 +26,8 @@ export default defineConfig({
         scope: base,
         display: 'standalone',
         orientation: 'portrait',
-        background_color: '#0b0d10',
-        theme_color: '#0b0d10',
+        background_color: '#000000',
+        theme_color: '#000000',
         icons: [
           { src: 'icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
           { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
@@ -36,7 +36,10 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2,mp3}'],
+        // le splash iOS sono lette solo all'avvio dalla Home: non serve precaricarle tutte
+        globIgnores: ['splash/**'],
         navigateFallback: 'index.html',
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
       },
     }),
   ],

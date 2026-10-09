@@ -18,6 +18,10 @@ export function useDoneSessions() {
   );
 }
 
+export function useBodyEntries() {
+  return useLiveQuery(() => db.body.orderBy('date').reverse().toArray(), []);
+}
+
 /** Nomi esercizio già usati (schede + storico), per l'autocompletamento */
 export function useKnownExercises(): string[] {
   return (

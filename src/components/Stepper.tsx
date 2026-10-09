@@ -42,31 +42,23 @@ export function Stepper({ label, value, onChange, step, min = 0, max = 9999, dec
   };
 
   const big = size === 'lg';
+  const btn = cn(
+    'tap flex shrink-0 items-center justify-center rounded-full bg-surface-2 text-fg active:bg-accent active:text-accent-ink',
+    big ? 'h-[58px] w-[58px] [@media(max-height:700px)]:h-[50px] [@media(max-height:700px)]:w-[50px]' : 'h-10 w-10',
+  );
   return (
     <div className="flex min-w-0 flex-col items-stretch">
       {!big && (
-        <span className="mb-1.5 text-center text-xs font-semibold uppercase tracking-[0.14em] text-muted">
+        <span className="mb-1.5 text-center text-[13px] text-muted">
           {label}
-          {unit && <span className="normal-case tracking-normal"> · {unit}</span>}
+          {unit && <span> · {unit}</span>}
         </span>
       )}
-      <div className={cn('flex items-center rounded-[22px] bg-surface-2 p-1.5', big ? 'h-[84px] [@media(max-height:700px)]:h-[72px]' : 'h-14')}>
-        <button
-          type="button"
-          aria-label={`Diminuisci ${label}`}
-          onClick={() => bump(-1)}
-          className={cn('tap flex shrink-0 items-center justify-center rounded-2xl bg-surface-3 active:bg-accent active:text-accent-ink', big ? 'h-full w-14' : 'h-full w-11')}
-        >
-          <IconMinus size={big ? 24 : 20} strokeWidth={2.6} />
+      <div className={cn('flex items-center gap-2', big ? 'h-[72px] [@media(max-height:700px)]:h-[60px]' : 'h-12 rounded-full bg-surface-2/60 p-1')}>
+        <button type="button" aria-label={`Diminuisci ${label}`} onClick={() => bump(-1)} className={btn}>
+          <IconMinus size={big ? 26 : 18} strokeWidth={2.6} />
         </button>
         <div className="flex min-w-0 flex-1 flex-col items-center justify-center">
-          {/* Nella versione grande l'etichetta sta dentro il box: risparmia spazio verticale */}
-          {big && (
-            <span className="text-[10px] leading-none font-bold uppercase tracking-[0.16em] text-muted">
-              {label}
-              {unit && <span className="normal-case tracking-normal"> · {unit}</span>}
-            </span>
-          )}
           <input
             inputMode={decimals ? 'decimal' : 'numeric'}
             enterKeyHint="done"
@@ -88,18 +80,19 @@ export function Stepper({ label, value, onChange, step, min = 0, max = 9999, dec
             }}
             onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
             className={cn(
-              'num w-full min-w-0 bg-transparent text-center font-extrabold outline-none placeholder:text-muted/50',
-              big ? '!text-[36px] leading-tight' : '!text-[22px]',
+              'rounded-num w-full min-w-0 bg-transparent text-center font-bold outline-none placeholder:text-faint',
+              big ? '!text-[46px] leading-none [@media(max-height:700px)]:!text-[38px]' : '!text-[20px]',
             )}
           />
+          {big && (
+            <span className="mt-1 text-[12px] leading-none font-semibold tracking-wide text-muted uppercase">
+              {label}
+              {unit && <span className="normal-case"> · {unit}</span>}
+            </span>
+          )}
         </div>
-        <button
-          type="button"
-          aria-label={`Aumenta ${label}`}
-          onClick={() => bump(1)}
-          className={cn('tap flex shrink-0 items-center justify-center rounded-2xl bg-surface-3 active:bg-accent active:text-accent-ink', big ? 'h-full w-14' : 'h-full w-11')}
-        >
-          <IconPlus size={big ? 24 : 20} strokeWidth={2.6} />
+        <button type="button" aria-label={`Aumenta ${label}`} onClick={() => bump(1)} className={btn}>
+          <IconPlus size={big ? 26 : 18} strokeWidth={2.6} />
         </button>
       </div>
     </div>

@@ -75,3 +75,13 @@ export function playTick(): void {
   if (!c || c.state !== 'running') return;
   tone(c, 660, c.currentTime + 0.01, 0.08, 0.18);
 }
+
+/** Fanfara breve per un nuovo record personale */
+export function playRecord(): void {
+  const c = getCtx();
+  if (!c) return;
+  if (c.state === 'suspended') void c.resume();
+  const t = c.currentTime + 0.02;
+  [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => tone(c, f, t + i * 0.09, 0.22, 0.28));
+  tone(c, 1318.5, t + 0.4, 0.5, 0.3);
+}

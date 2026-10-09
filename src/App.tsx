@@ -1,45 +1,71 @@
-import { useEffect, useRef, useState } from 'react';
-import { IconChart, IconList, IconPlay, IconSettings } from './components/Icons';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFeedback } from './components/Feedback';
+import { IconChart, IconHome, IconList, IconSettings } from './components/Icons';
 import { useActiveSession } from './hooks/useData';
-import { useNow } from './hooks/useNow';
 import { unlockAudio } from './lib/audio';
+import { SHARE_PARAM } from './lib/share';
+import { cn } from './lib/utils';
 import { startWorkout } from './lib/workout';
-import { cn, fmtClock } from './lib/utils';
-import { HistoryScreen } from './screens/history/HistoryScreen';
+import { HomeScreen } from './screens/home/HomeScreen';
 import { PlansScreen } from './screens/plans/PlansScreen';
+import { SharedPlanSheet } from './screens/plans/SharedPlanSheet';
+import { ProgressScreen } from './screens/progress/ProgressScreen';
 import { SettingsScreen } from './screens/settings/SettingsScreen';
 import { WorkoutScreen } from './screens/workout/WorkoutScreen';
 import { WorkoutSummary } from './screens/workout/WorkoutSummary';
 import type { Plan } from './types';
 
-type Tab = 'plans' | 'train' | 'settings';
+export type Tab = 'home' | 'plans' | 'progress' | 'settings';
 
 const TABS: { id: Tab; label: string; icon: typeof IconList }[] = [
+  { id: 'home', label: 'Home', icon: IconHome },
   { id: 'plans', label: 'Schede', icon: IconList },
-  { id: 'train', label: 'Allenamento', icon: IconChart },
+  { id: 'progress', label: 'Progressi', icon: IconChart },
   { id: 'settings', label: 'Impostazioni', icon: IconSettings },
 ];
 
+function readShareCode(): string | null {
+  const m = window.location.hash.match(new RegExp(`${SHARE_PARAM}=([^&]+)`));
+  return m ? m[1] : null;
+}
+
 export default function App() {
-  const [tab, setTab] = useState<Tab>('plans');
+  const [tab, setTab] = useState<Tab>('home');
+  const [visited, setVisited] = useState<Set<Tab>>(() => new Set(['home']));
   const active = useActiveSession();
   const [workoutOpen, setWorkoutOpen] = useState(false);
   const [summaryId, setSummaryId] = useState<string | null>(null);
+  const [shareCode, setShareCode] = useState<string | null>(readShareCode);
   const resumed = useRef(false);
-  const scrollRef = useRef<HTMLElement>(null);
   const { confirm } = useFeedback();
 
   // Allenamento in corso alla riapertura dell'app: riprendilo
   useEffect(() => {
     if (active === undefined || resumed.current) return;
     resumed.current = true;
-    if (active) setWorkoutOpen(true);
-  }, [active]);
+    if (active && !shareCode) setWorkoutOpen(true);
+  }, [active, shareCode]);
 
+  // Link di condivisione aperto mentre l'app è già aperta
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: 0 });
-  }, [tab]);
+    const onHash = () => {
+      const c = readShareCode();
+      if (c) setShareCode(c);
+    };
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+
+  const go = useCallback((t: Tab) => {
+    setVisited((v) => (v.has(t) ? v : new Set(v).add(t)));
+    setTab((cur) => {
+      if (cur === t) {
+        // tocco sulla tab già attiva: torna in cima, come su iOS
+        document.querySelector<HTMLElement>(`[data-tab="${t}"] [data-scroll]`)?.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+      return t;
+    });
+  }, []);
 
   const start = async (plan: Plan) => {
     unlockAudio(); // gesto utente: sblocca l'audio per il timer
@@ -56,41 +82,65 @@ export default function App() {
     setWorkoutOpen(true);
   };
 
+  const closeShare = () => {
+    setShareCode(null);
+    history.replaceState(null, '', window.location.pathname + window.location.search);
+  };
+
+  const showShell = !(active && workoutOpen);
+
   return (
-    <div className="flex h-full flex-col">
-      <main ref={scrollRef} className="scroll-area px-safe min-h-0 flex-1">
-        <div key={tab} className="anim-fade">
-          {tab === 'plans' && <PlansScreen onStart={start} activePlanId={active?.planId} />}
-          {tab === 'train' && <HistoryScreen active={active ?? null} onResume={() => setWorkoutOpen(true)} />}
-          {tab === 'settings' && <SettingsScreen />}
-        </div>
-      </main>
+    <div className="relative h-full">
+      {/* Con l'allenamento aperto la shell viene nascosta: meno livelli (e blur) da comporre */}
+      <div className={cn('h-full', !showShell && 'hidden')}>
+        {TABS.map((t) =>
+          visited.has(t.id) ? (
+            <div key={t.id} data-tab={t.id} className={cn('h-full', tab === t.id ? 'anim-screen' : 'hidden')}>
+              {t.id === 'home' && (
+                <HomeScreen
+                  active={active ?? null}
+                  onStart={start}
+                  onResume={() => setWorkoutOpen(true)}
+                  onGo={go}
+                />
+              )}
+              {t.id === 'plans' && <PlansScreen onStart={start} activePlanId={active?.planId} />}
+              {t.id === 'progress' && <ProgressScreen />}
+              {t.id === 'settings' && <SettingsScreen />}
+            </div>
+          ) : null,
+        )}
 
-      {active && !workoutOpen && <ActiveBar startedAt={active.startedAt} name={active.planName} onOpen={() => setWorkoutOpen(true)} />}
-
-      <nav className="pb-safe px-safe border-t border-line bg-bg/85 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-lg">
-          {TABS.map((t) => {
-            const Icon = t.icon;
-            const selected = tab === t.id;
-            return (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setTab(t.id)}
-                aria-current={selected ? 'page' : undefined}
-                className={cn('tap relative flex h-[58px] flex-1 flex-col items-center justify-center gap-0.5', selected ? 'text-fg' : 'text-muted')}
-              >
-                <span className={cn('flex h-8 w-14 items-center justify-center rounded-full transition-colors', selected && 'bg-accent-soft text-accent')}>
-                  <Icon size={22} strokeWidth={selected ? 2.4 : 2} />
-                </span>
-                <span className="text-[11px] font-semibold">{t.label}</span>
-                {t.id === 'train' && active && <span className="absolute top-2 right-[calc(50%-24px)] h-2 w-2 rounded-full bg-accent" />}
-              </button>
-            );
-          })}
-        </div>
-      </nav>
+        <nav
+          aria-label="Sezioni"
+          className="pointer-events-none fixed inset-x-0 bottom-0 z-30 flex justify-center px-4 pb-[max(var(--safe-bottom),12px)]"
+        >
+          <div className="glass pointer-events-auto flex h-[var(--tabbar-h)] w-full max-w-md items-stretch rounded-full p-1.5">
+            {TABS.map((t) => {
+              const Icon = t.icon;
+              const selected = tab === t.id;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => go(t.id)}
+                  aria-current={selected ? 'page' : undefined}
+                  className={cn(
+                    'relative flex flex-1 flex-col items-center justify-center gap-0.5 rounded-full transition-[color,background-color] duration-300',
+                    selected ? 'bg-surface-2 text-accent' : 'text-fg-2 active:bg-surface-2',
+                  )}
+                >
+                  <Icon size={23} strokeWidth={selected ? 2.4 : 2} />
+                  <span className="text-[10px] font-semibold">{t.label}</span>
+                  {t.id === 'home' && active && !workoutOpen && (
+                    <span className="absolute top-2 right-[calc(50%-18px)] h-2 w-2 rounded-full bg-accent ring-2 ring-[var(--material)]" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+      </div>
 
       {active && workoutOpen && (
         <WorkoutScreen
@@ -98,31 +148,12 @@ export default function App() {
           onMinimize={() => setWorkoutOpen(false)}
           onFinished={(id) => {
             setWorkoutOpen(false);
-            if (id) {
-              setSummaryId(id);
-              setTab('train');
-            }
+            if (id) setSummaryId(id);
           }}
         />
       )}
       <WorkoutSummary sessionId={summaryId} onClose={() => setSummaryId(null)} />
-    </div>
-  );
-}
-
-function ActiveBar({ name, startedAt, onOpen }: { name: string; startedAt: number; onOpen: () => void }) {
-  const now = useNow(1000);
-  return (
-    <div className="px-safe">
-      <button
-        type="button"
-        onClick={onOpen}
-        className="anim-pop tap mx-3 mb-2 flex h-14 w-[calc(100%-24px)] items-center gap-3 rounded-2xl bg-accent px-4 text-accent-ink shadow-lg"
-      >
-        <IconPlay size={18} />
-        <span className="min-w-0 flex-1 truncate text-left font-bold">{name}</span>
-        <span className="num font-extrabold">{fmtClock((now - startedAt) / 1000)}</span>
-      </button>
+      <SharedPlanSheet code={shareCode} onClose={closeShare} />
     </div>
   );
 }

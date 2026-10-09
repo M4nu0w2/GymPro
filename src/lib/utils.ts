@@ -72,6 +72,12 @@ export function targetRepsMin(reps: string): number | null {
   return m ? Number(m[1]) : null;
 }
 
+/** Rep target "8-10" -> 10 ; "12" -> 12 ; altro -> null */
+export function targetRepsMax(reps: string): number | null {
+  const m = reps.match(/^\s*(\d+)(?:\s*-\s*(\d+))?/);
+  return m ? Number(m[2] ?? m[1]) : null;
+}
+
 export const REPS_PATTERN = /^\d{1,3}(\s*-\s*\d{1,3})?$/;
 
 export function cleanReps(reps: string): string {

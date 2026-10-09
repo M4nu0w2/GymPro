@@ -7,10 +7,11 @@ import {
   IconMore,
   IconPlay,
   IconPlus,
+  IconShare,
   IconTrash,
   IconUpload,
 } from '../../components/Icons';
-import { Button, Card, EmptyState, IconButton, ScreenHeader, Sheet } from '../../components/ui';
+import { Button, Card, EmptyState, IconButton, Row, RowIcon, Screen, Sheet } from '../../components/ui';
 import { useFeedback } from '../../components/Feedback';
 import { useDoneSessions, usePlans } from '../../hooks/useData';
 import { db } from '../../db';
@@ -20,12 +21,14 @@ import { fmtDate, fmtRest, uid } from '../../lib/utils';
 import type { Plan } from '../../types';
 import { ImportSheet } from './ImportSheet';
 import { PlanEditor } from './PlanEditor';
+import { ShareSheet } from './ShareSheet';
 
 export function PlansScreen({ onStart, activePlanId }: { onStart: (p: Plan) => void; activePlanId?: string }) {
   const plans = usePlans();
   const sessions = useDoneSessions();
   const [editing, setEditing] = useState<Plan | 'new' | null>(null);
   const [menuFor, setMenuFor] = useState<Plan | null>(null);
+  const [sharing, setSharing] = useState<Plan | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const { confirm, toast } = useFeedback();
 
@@ -62,113 +65,120 @@ export function PlansScreen({ onStart, activePlanId }: { onStart: (p: Plan) => v
     toast('Scheda eliminata');
   };
 
+  const actions = (p: Plan) => [
+    { icon: <IconEdit size={17} />, label: 'Modifica', fn: () => setEditing(p), cls: 'bg-[#0a84ff] text-white' },
+    { icon: <IconShare size={17} />, label: 'Condividi', fn: () => setSharing(p), cls: 'bg-accent text-accent-ink' },
+    { icon: <IconCopy size={17} />, label: 'Duplica', fn: () => duplicate(p), cls: 'bg-[#8e8e93] text-white' },
+    { icon: <IconTrash size={17} />, label: 'Elimina', fn: () => remove(p), cls: 'bg-danger text-white', danger: true },
+  ];
+
   return (
-    <div className="pb-6">
-      <ScreenHeader
-        title="Schede"
-        subtitle="GymPro"
-        actions={
-          <IconButton label="Nuova scheda" className="bg-accent !text-accent-ink active:!bg-accent-strong" onClick={() => setEditing('new')}>
-            <IconPlus strokeWidth={2.6} />
+    <Screen
+      title="Schede"
+      actions={
+        <>
+          <IconButton label="Importa schede" onClick={() => setImportOpen(true)}>
+            <IconUpload size={18} strokeWidth={2.4} />
           </IconButton>
-        }
-      />
-
-      <div className="flex gap-2 px-5 pb-4">
-        <Button size="sm" onClick={() => setImportOpen(true)}>
-          <IconUpload size={16} /> Import
-        </Button>
-        <Button size="sm" onClick={downloadTemplate}>
-          <IconDownload size={16} /> Scarica template
-        </Button>
-      </div>
-
-      <div className="space-y-3 px-4">
+          <IconButton label="Nuova scheda" className="!bg-accent !text-accent-ink" onClick={() => setEditing('new')}>
+            <IconPlus size={20} strokeWidth={2.6} />
+          </IconButton>
+        </>
+      }
+    >
+      <div className="space-y-3 px-4 pt-2">
         {plans?.length === 0 && (
           <EmptyState
             icon={<IconList size={30} />}
             title="Nessuna scheda"
-            text="Crea la tua prima scheda oppure importala da un file CSV."
+            text="Crea la tua prima scheda, importala da un file CSV o apri un link condiviso."
             action={
-              <Button variant="primary" size="lg" onClick={() => setEditing('new')}>
-                <IconPlus /> Crea scheda
-              </Button>
+              <div className="flex flex-col gap-2.5">
+                <Button variant="primary" size="lg" onClick={() => setEditing('new')}>
+                  <IconPlus /> Crea scheda
+                </Button>
+                <Button size="lg" onClick={() => setImportOpen(true)}>
+                  <IconUpload size={18} /> Importa
+                </Button>
+              </div>
             }
           />
         )}
 
         {plans?.map((p, i) => (
-          <Card key={p.id} className="anim-pop overflow-hidden" >
-            <div style={{ animationDelay: `${i * 40}ms` }}>
-              <div className="flex items-start gap-2 p-4 pb-3">
+          <Card key={p.id} className="anim-pop overflow-hidden">
+            <div style={{ animationDelay: `${Math.min(i, 6) * 40}ms` }}>
+              <div className="flex items-start gap-2 p-4 pb-2">
                 <button type="button" className="min-w-0 flex-1 text-left" onClick={() => setEditing(p)}>
-                  <h2 className="truncate text-xl font-extrabold tracking-tight">{p.name}</h2>
-                  <p className="mt-0.5 text-sm text-muted">
+                  <h2 className="truncate text-[22px] leading-7 font-bold">{p.name}</h2>
+                  <p className="mt-0.5 text-[15px] text-muted">
                     {p.exercises.length} esercizi
-                    {lastDone.has(p.id) ? ` · ultima volta ${fmtDate(lastDone.get(p.id)!, { day: 'numeric', month: 'short' })}` : ''}
+                    {lastDone.has(p.id) ? ` · ${fmtDate(lastDone.get(p.id)!, { day: 'numeric', month: 'short' })}` : ''}
                   </p>
-                  {p.description && <p className="mt-1 line-clamp-2 text-sm text-muted">{p.description}</p>}
+                  {p.description && <p className="mt-1 line-clamp-2 text-[15px] text-fg-2">{p.description}</p>}
                 </button>
-                <IconButton label="Opzioni" onClick={() => setMenuFor(p)} className="-mt-1 -mr-1">
-                  <IconMore />
+                <IconButton label="Opzioni" onClick={() => setMenuFor(p)}>
+                  <IconMore size={20} />
                 </IconButton>
               </div>
 
               <div className="no-scrollbar flex gap-1.5 overflow-x-auto px-4 pb-3">
                 {p.exercises.slice(0, 8).map((e) => (
-                  <span key={e.id} className="shrink-0 rounded-full bg-surface-2 px-2.5 py-1 text-xs font-medium text-muted">
+                  <span key={e.id} className="shrink-0 rounded-full bg-surface-2 px-2.5 py-1 text-[12px] font-medium text-fg-2">
                     {e.name}
                   </span>
                 ))}
-                {p.exercises.length > 8 && <span className="shrink-0 px-1 py-1 text-xs text-muted">+{p.exercises.length - 8}</span>}
+                {p.exercises.length > 8 && <span className="shrink-0 px-1 py-1 text-[12px] text-muted">+{p.exercises.length - 8}</span>}
               </div>
 
               <div className="px-3 pb-3">
-                <Button
-                  variant="primary"
-                  size="lg"
-                  className="w-full"
-                  disabled={p.exercises.length === 0}
-                  onClick={() => onStart(p)}
-                >
-                  <IconPlay size={18} /> {activePlanId === p.id ? 'Riprendi allenamento' : 'Inizia allenamento'}
+                <Button variant={activePlanId === p.id ? 'primary' : 'tinted'} size="lg" className="w-full" disabled={p.exercises.length === 0} onClick={() => onStart(p)}>
+                  <IconPlay size={17} /> {activePlanId === p.id ? 'Riprendi allenamento' : 'Inizia allenamento'}
                 </Button>
               </div>
             </div>
           </Card>
         ))}
+
+        {(plans?.length ?? 0) > 0 && (
+          <div className="pt-2">
+            <Button variant="ghost" className="w-full" onClick={downloadTemplate}>
+              <IconDownload size={18} /> Scarica template CSV
+            </Button>
+          </div>
+        )}
       </div>
 
       <Sheet open={!!menuFor} onClose={() => setMenuFor(null)} title={menuFor?.name}>
         {menuFor && (
-          <div className="space-y-2 py-2">
-            {[
-              { icon: <IconEdit />, label: 'Modifica', fn: () => setEditing(menuFor) },
-              { icon: <IconCopy />, label: 'Duplica', fn: () => duplicate(menuFor) },
-              { icon: <IconTrash />, label: 'Elimina', fn: () => remove(menuFor), danger: true },
-            ].map((a) => (
-              <button
-                key={a.label}
-                type="button"
-                onClick={() => {
-                  setMenuFor(null);
-                  void a.fn();
-                }}
-                className={`tap flex h-14 w-full items-center gap-3 rounded-2xl bg-surface px-4 text-left font-semibold active:bg-surface-2 ${a.danger ? 'text-danger' : ''}`}
-              >
-                {a.icon}
-                {a.label}
-              </button>
-            ))}
-            <div className="pt-2 text-center text-xs text-muted">
-              {menuFor.exercises.map((e) => `${e.name} ${e.sets}×${e.reps} (${fmtRest(e.restSec)})`).join(' · ')}
+          <div className="space-y-4 pb-2">
+            <div className="overflow-hidden rounded-[22px] bg-surface">
+              {actions(menuFor).map((a) => (
+                <Row
+                  key={a.label}
+                  icon={<RowIcon className={a.cls}>{a.icon}</RowIcon>}
+                  title={a.label}
+                  destructive={a.danger}
+                  chevron={false}
+                  onClick={() => {
+                    setMenuFor(null);
+                    void a.fn();
+                  }}
+                />
+              ))}
+            </div>
+            <div className="overflow-hidden rounded-[22px] bg-surface">
+              {menuFor.exercises.map((e) => (
+                <Row key={e.id} title={e.name} value={`${e.sets}×${e.reps} · ${fmtRest(e.restSec)}`} />
+              ))}
             </div>
           </div>
         )}
       </Sheet>
 
       {editing && <PlanEditor plan={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
-      <ImportSheet open={importOpen} onClose={() => setImportOpen(false)} existing={plans ?? []} />
-    </div>
+      <ImportSheet open={importOpen} onClose={() => setImportOpen(false)} existing={plans ?? []} onTemplate={downloadTemplate} />
+      <ShareSheet plan={sharing} onClose={() => setSharing(null)} />
+    </Screen>
   );
 }

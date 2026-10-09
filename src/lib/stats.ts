@@ -101,3 +101,141 @@ export function findSessionPRs(session: Session, previous: Session[]): PersonalR
   }
   return hits;
 }
+
+// --- Calendario e streak ---
+
+/** Chiave giorno locale YYYY-MM-DD */
+export function dayKey(ts: number): string {
+  const d = new Date(ts);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+export function startOfDay(ts: number): number {
+  const d = new Date(ts);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+/** Lunedì 00:00 della settimana di `ts` */
+export function startOfWeek(ts: number): number {
+  const d = new Date(startOfDay(ts));
+  const dow = (d.getDay() + 6) % 7; // lun = 0
+  d.setDate(d.getDate() - dow);
+  return d.getTime();
+}
+
+export function addDays(ts: number, n: number): number {
+  const d = new Date(ts);
+  d.setDate(d.getDate() + n);
+  return d.getTime();
+}
+
+export function trainingDays(sessions: Session[]): Set<string> {
+  return new Set(sessions.map((s) => dayKey(s.startedAt)));
+}
+
+/** Giorni consecutivi di allenamento fino a oggi (o ieri: la streak resta viva fino a fine giornata) */
+export function dayStreak(days: Set<string>, now = Date.now()): number {
+  let cur = startOfDay(now);
+  if (!days.has(dayKey(cur))) cur = addDays(cur, -1);
+  let n = 0;
+  while (days.has(dayKey(cur))) {
+    n++;
+    cur = addDays(cur, -1);
+  }
+  return n;
+}
+
+/** Settimane consecutive con almeno un allenamento (la settimana in corso non interrompe la serie) */
+export function weekStreak(sessions: Session[], now = Date.now()): number {
+  const weeks = new Set(sessions.map((s) => startOfWeek(s.startedAt)));
+  let cur = startOfWeek(now);
+  if (!weeks.has(cur)) cur = startOfWeek(addDays(cur, -1));
+  let n = 0;
+  while (weeks.has(cur)) {
+    n++;
+    cur = startOfWeek(addDays(cur, -1));
+  }
+  return n;
+}
+
+// --- Volume per gruppo muscolare ---
+
+export function weeklyVolumeByMuscle<M extends string>(
+  sessions: Session[],
+  weekStart: number,
+  muscleOf: (key: string) => M | undefined,
+): { muscle: M | null; volume: number; sets: number }[] {
+  const end = addDays(weekStart, 7);
+  const acc = new Map<M | null, { volume: number; sets: number }>();
+  for (const s of sessions) {
+    if (s.startedAt < weekStart || s.startedAt >= end) continue;
+    for (const set of s.sets) {
+      const m = muscleOf(set.exerciseKey) ?? null;
+      const cur = acc.get(m) ?? { volume: 0, sets: 0 };
+      cur.volume += setVolume(set);
+      cur.sets += 1;
+      acc.set(m, cur);
+    }
+  }
+  return [...acc.entries()].map(([muscle, v]) => ({ muscle, ...v })).sort((a, b) => b.volume - a.volume);
+}
+
+// --- Record personali ---
+
+/** Record stabiliti in ogni sessione, calcolati in un solo passaggio cronologico */
+export function prTimeline(sessions: Session[]): Map<string, PersonalRecordHit[]> {
+  const out = new Map<string, PersonalRecordHit[]>();
+  const best = new Map<string, ExerciseRecord>();
+  const sorted = sessions.filter((s) => s.status === 'done').sort((a, b) => a.startedAt - b.startedAt);
+  for (const sess of sorted) {
+    const hits: PersonalRecordHit[] = [];
+    const byKey = new Map<string, SetLog[]>();
+    for (const set of sess.sets) if (set.reps > 0) byKey.set(set.exerciseKey, [...(byKey.get(set.exerciseKey) ?? []), set]);
+    for (const [key, sets] of byKey) {
+      const prev = best.get(key);
+      const now = computeRecord(sets);
+      if (prev) {
+        const hit = checkRecord(sets, prev);
+        if (hit) hits.push(hit);
+        best.set(key, {
+          maxWeight: Math.max(prev.maxWeight, now.maxWeight),
+          maxWeightReps: now.maxWeight > prev.maxWeight ? now.maxWeightReps : prev.maxWeightReps,
+          best1RM: Math.max(prev.best1RM, now.best1RM),
+          bestVolumeSession: 0,
+        });
+      } else best.set(key, now);
+    }
+    if (hits.length) out.set(sess.id, hits);
+  }
+  return out;
+}
+
+function checkRecord(sets: SetLog[], prev: ExerciseRecord): PersonalRecordHit | null {
+  const bestW = sets.reduce<SetLog | null>((b, s) => (!b || s.weight > b.weight ? s : b), null);
+  const best1 = sets.reduce<SetLog | null>((b, s) => (!b || estimate1RM(s.weight, s.reps) > estimate1RM(b.weight, b.reps) ? s : b), null);
+  if (bestW && bestW.weight > prev.maxWeight) {
+    return { exerciseName: bestW.exerciseName, kind: 'peso', value: bestW.weight, previous: prev.maxWeight, set: bestW };
+  }
+  if (best1 && estimate1RM(best1.weight, best1.reps) > prev.best1RM + 0.01) {
+    return { exerciseName: best1.exerciseName, kind: '1RM', value: estimate1RM(best1.weight, best1.reps), previous: prev.best1RM, set: best1 };
+  }
+  return null;
+}
+
+/**
+ * Durante l'allenamento: la serie appena fatta è un record?
+ * Confronta con lo storico precedente e con le serie già fatte oggi
+ * (così il record si festeggia una volta per ogni miglioramento reale).
+ */
+export function liveRecord(set: SetLog, history: ExerciseRecord | null, earlierToday: SetLog[]): PersonalRecordHit | null {
+  if (!history || history.maxWeight <= 0 || set.reps <= 0 || set.weight <= 0) return null;
+  const today = computeRecord(earlierToday);
+  const ref: ExerciseRecord = {
+    maxWeight: Math.max(history.maxWeight, today.maxWeight),
+    maxWeightReps: 0,
+    best1RM: Math.max(history.best1RM, today.best1RM),
+    bestVolumeSession: 0,
+  };
+  return checkRecord([set], ref);
+}

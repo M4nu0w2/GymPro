@@ -7,16 +7,31 @@ export interface Settings {
   sound: boolean;
   countdownTicks: boolean;
   weightStep: number;
+  /** Progressione automatica del carico */
+  progression: boolean;
+  /** kg proposti in più quando la progressione è guadagnata */
+  progressionStep: number;
 }
 
-const DEFAULTS: Settings = { theme: 'dark', sound: true, countdownTicks: true, weightStep: 2.5 };
+const DEFAULTS: Settings = {
+  theme: 'system',
+  sound: true,
+  countdownTicks: true,
+  weightStep: 2.5,
+  progression: true,
+  progressionStep: 2.5,
+};
 const KEY = 'gympro.settings';
 const listeners = new Set<() => void>();
 
 function load(): Settings {
   try {
     const raw = localStorage.getItem(KEY);
-    return raw ? { ...DEFAULTS, ...JSON.parse(raw) } : DEFAULTS;
+    if (!raw) return DEFAULTS;
+    const saved = JSON.parse(raw) as Partial<Settings>;
+    // Impostazioni della versione precedente (tema scuro forzato): ora il tema segue il sistema
+    if (!('progression' in saved)) saved.theme = 'system';
+    return { ...DEFAULTS, ...saved };
   } catch {
     return DEFAULTS;
   }
@@ -58,7 +73,12 @@ export function applyTheme(): void {
   const root = document.documentElement;
   root.classList.toggle('dark', dark);
   root.classList.toggle('light', !dark);
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#0b0d10' : '#f3f4f1');
+  document.querySelectorAll('meta[name="theme-color"]').forEach((m) => m.setAttribute('content', dark ? '#000000' : '#f2f2f7'));
+  try {
+    localStorage.setItem('gympro.theme', t);
+  } catch {
+    /* ignore */
+  }
 }
 
 darkQuery?.addEventListener('change', () => {

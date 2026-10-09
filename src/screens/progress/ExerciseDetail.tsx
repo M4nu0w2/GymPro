@@ -2,8 +2,10 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useState } from 'react';
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { IconTrophy } from '../../components/Icons';
+import { MusclePicker } from '../../components/MusclePicker';
 import { Segmented, Sheet } from '../../components/ui';
 import { db } from '../../db';
+import { setMuscle, useExerciseMeta } from '../../lib/exercises';
 import { computeRecord, estimate1RM, exerciseSeries } from '../../lib/stats';
 import { fmtDate, fmtKg, fmtVolume } from '../../lib/utils';
 
@@ -25,6 +27,7 @@ export function ExerciseDetail({
   onOpenSession: (id: string) => void;
 }) {
   const [metric, setMetric] = useState<Metric>('maxWeight');
+  const meta = useExerciseMeta(exerciseKey);
   const data = useLiveQuery(async () => {
     if (!exerciseKey) return null;
     const sessions = (await db.sessions.where('exerciseKeys').equals(exerciseKey).toArray()).filter((s) => s.status === 'done');
@@ -44,28 +47,33 @@ export function ExerciseDetail({
   return (
     <Sheet open={!!exerciseKey} onClose={onClose} full title={data?.name ?? ''}>
       {data && (
-        <div className="space-y-4 py-2 pb-10">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-3xl border border-gold/30 bg-gold/10 p-4">
-              <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-gold">
+        <div className="space-y-4 pt-1 pb-10">
+          <div className="grid grid-cols-2 gap-2.5">
+            <div className="rounded-[22px] bg-gold-soft p-4">
+              <p className="flex items-center gap-1.5 text-[13px] font-semibold text-gold">
                 <IconTrophy size={14} /> Record peso
               </p>
-              <p className="num mt-1 text-[28px] leading-none font-black">
+              <p className="rounded-num mt-1 text-[30px] leading-none font-bold">
                 {fmtKg(data.record.maxWeight)}
-                <span className="text-base font-bold text-muted"> kg</span>
+                <span className="text-[15px] font-semibold text-muted"> kg</span>
               </p>
-              <p className="num mt-1 text-xs text-muted">
+              <p className="num mt-1 text-[13px] text-muted">
                 × {data.record.maxWeightReps} rep{recordWeightSet ? ` · ${fmtDate(recordWeightSet.timestamp, { day: 'numeric', month: 'short' })}` : ''}
               </p>
             </div>
-            <div className="rounded-3xl bg-surface p-4">
-              <p className="text-xs font-bold uppercase tracking-wider text-muted">1RM stimato</p>
-              <p className="num mt-1 text-[28px] leading-none font-black">
+            <div className="rounded-[22px] bg-surface p-4">
+              <p className="text-[13px] font-semibold text-muted">1RM stimato</p>
+              <p className="rounded-num mt-1 text-[30px] leading-none font-bold">
                 {fmtKg(best1RMValue)}
-                <span className="text-base font-bold text-muted"> kg</span>
+                <span className="text-[15px] font-semibold text-muted"> kg</span>
               </p>
-              <p className="mt-1 text-xs text-muted">formula di Epley</p>
+              <p className="mt-1 text-[13px] text-muted">formula di Epley</p>
             </div>
+          </div>
+
+          <div className="rounded-[22px] bg-surface p-4">
+            <p className="mb-2.5 text-[13px] text-muted">Gruppo muscolare</p>
+            <MusclePicker value={meta?.muscle} onChange={(m) => void setMuscle(data.name, m)} />
           </div>
 
           <Segmented
@@ -74,7 +82,7 @@ export function ExerciseDetail({
             options={(Object.keys(METRIC_LABEL) as Metric[]).map((m) => ({ value: m, label: METRIC_LABEL[m] }))}
           />
 
-          <div className="rounded-3xl bg-surface p-3 pt-4">
+          <div className="rounded-[22px] bg-surface p-3 pt-4">
             {chartData && chartData.length >= 2 ? (
               <div className="h-56 w-full">
                 <ResponsiveContainer width="100%" height="100%">
@@ -87,23 +95,11 @@ export function ExerciseDetail({
                     </defs>
                     <CartesianGrid stroke="var(--border)" vertical={false} />
                     <XAxis dataKey="date" tick={{ fill: 'var(--muted)', fontSize: 11 }} tickLine={false} axisLine={false} minTickGap={16} />
-                    <YAxis
-                      tick={{ fill: 'var(--muted)', fontSize: 11 }}
-                      tickLine={false}
-                      axisLine={false}
-                      width={44}
-                      domain={['auto', 'auto']}
-                    />
+                    <YAxis tick={{ fill: 'var(--muted)', fontSize: 11 }} tickLine={false} axisLine={false} width={44} domain={['auto', 'auto']} />
                     <Tooltip
                       cursor={{ stroke: 'var(--muted)', strokeDasharray: '3 3' }}
-                      contentStyle={{
-                        background: 'var(--surface-2)',
-                        border: 'none',
-                        borderRadius: 14,
-                        color: 'var(--text)',
-                        fontWeight: 700,
-                      }}
-                      labelStyle={{ color: 'var(--muted)', fontWeight: 600 }}
+                      contentStyle={{ background: 'var(--elevated)', border: 'none', borderRadius: 14, color: 'var(--text)', fontWeight: 600 }}
+                      labelStyle={{ color: 'var(--muted)', fontWeight: 500 }}
                       formatter={(v) => [metric === 'volume' ? fmtVolume(Number(v)) : `${fmtKg(Number(v))} kg`, METRIC_LABEL[metric]]}
                     />
                     <Area
@@ -113,7 +109,7 @@ export function ExerciseDetail({
                       strokeWidth={3}
                       fill="url(#fillAccent)"
                       dot={{ r: 3, fill: 'var(--accent)', strokeWidth: 0 }}
-                      activeDot={{ r: 6, fill: 'var(--accent)', stroke: 'var(--bg)', strokeWidth: 2 }}
+                      activeDot={{ r: 6, fill: 'var(--accent)', stroke: 'var(--surface)', strokeWidth: 2 }}
                       isAnimationActive
                       animationDuration={500}
                     />
@@ -121,35 +117,27 @@ export function ExerciseDetail({
                 </ResponsiveContainer>
               </div>
             ) : (
-              <p className="py-10 text-center text-sm text-muted">Il grafico apparirà dopo almeno 2 sessioni.</p>
+              <p className="py-10 text-center text-[15px] text-muted">Il grafico apparirà dopo almeno 2 sessioni.</p>
             )}
           </div>
 
-          <h3 className="px-1 pt-2 text-xs font-semibold uppercase tracking-wider text-muted">Sessioni · {data.points.length}</h3>
+          <h3 className="px-4 pt-2 text-[13px] text-muted uppercase">Sessioni · {data.points.length}</h3>
           <div className="space-y-2.5">
             {data.points
               .slice()
               .reverse()
               .map((p) => (
-                <button
-                  key={p.sessionId}
-                  type="button"
-                  onClick={() => onOpenSession(p.sessionId)}
-                  className="tap block w-full rounded-3xl border border-line bg-surface p-4 text-left active:bg-surface-2"
-                >
+                <button key={p.sessionId} type="button" onClick={() => onOpenSession(p.sessionId)} className="tap block w-full rounded-[22px] bg-surface p-4 text-left">
                   <div className="flex items-baseline justify-between">
-                    <span className="font-bold capitalize">{fmtDate(p.date, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}</span>
-                    <span className="num text-xs text-muted">{fmtVolume(p.volume)}</span>
+                    <span className="font-semibold capitalize">{fmtDate(p.date, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                    <span className="num text-[13px] text-muted">{fmtVolume(p.volume)}</span>
                   </div>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {p.sets.map((s) => {
                       const isPR = s.weight === data.record.maxWeight && s.reps === data.record.maxWeightReps;
                       const is1RM = Math.abs(estimate1RM(s.weight, s.reps) - data.record.best1RM) < 0.01;
                       return (
-                        <span
-                          key={s.id}
-                          className={`num rounded-xl px-2.5 py-1 text-sm font-bold ${isPR || is1RM ? 'bg-gold/15 text-gold' : 'bg-surface-2'}`}
-                        >
+                        <span key={s.id} className={`num rounded-full px-2.5 py-1 text-[14px] font-semibold ${isPR || is1RM ? 'bg-gold-soft text-gold' : 'bg-surface-2'}`}>
                           {fmtKg(s.weight)}×{s.reps}
                         </span>
                       );

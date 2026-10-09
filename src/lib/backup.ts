@@ -1,10 +1,17 @@
 import { db } from '../db';
-import type { BackupFile, Plan, PlanExercise, Session } from '../types';
+import type { BackupFile, BodyEntry, ExerciseMeta, Plan, PlanExercise, Session } from '../types';
+import { BODY_FIELDS } from '../types';
+import { parseMuscle } from './exercises';
 import { normalizeName, uid } from './utils';
 
 export async function createBackup(): Promise<BackupFile> {
-  const [plans, sessions] = await Promise.all([db.plans.toArray(), db.sessions.toArray()]);
-  return { app: 'gympro', version: 1, exportedAt: new Date().toISOString(), plans, sessions };
+  const [plans, sessions, exercises, body] = await Promise.all([
+    db.plans.toArray(),
+    db.sessions.toArray(),
+    db.exercises.toArray(),
+    db.body.toArray(),
+  ]);
+  return { app: 'gympro', version: 2, exportedAt: new Date().toISOString(), plans, sessions, exercises, body };
 }
 
 function isObj(v: unknown): v is Record<string, unknown> {
@@ -24,7 +31,9 @@ export function parseBackup(text: string): BackupFile {
   }
   const plans = data.plans.map((p, i) => sanitizePlan(p, `scheda #${i + 1}`));
   const sessions = data.sessions.map((s, i) => sanitizeSession(s, i));
-  return { app: 'gympro', version: 1, exportedAt: String(data.exportedAt ?? ''), plans, sessions };
+  const exercises = Array.isArray(data.exercises) ? data.exercises.map(sanitizeMeta).filter((e): e is ExerciseMeta => !!e) : [];
+  const body = Array.isArray(data.body) ? data.body.map(sanitizeBody).filter((b): b is BodyEntry => !!b) : [];
+  return { app: 'gympro', version: 2, exportedAt: String(data.exportedAt ?? ''), plans, sessions, exercises, body };
 }
 
 export function sanitizePlan(p: unknown, label: string, keepId = true): Plan {
@@ -84,11 +93,25 @@ function sanitizeSession(s: unknown, i: number): Session {
 
 /** Ripristino: sostituisce tutti i dati */
 export async function restoreBackup(backup: BackupFile): Promise<void> {
-  await db.transaction('rw', db.plans, db.sessions, async () => {
-    await db.plans.clear();
-    await db.sessions.clear();
+  await db.transaction('rw', [db.plans, db.sessions, db.exercises, db.body], async () => {
+    await wipeTables();
     await db.plans.bulkPut(backup.plans);
     await db.sessions.bulkPut(backup.sessions);
+    await db.exercises.bulkPut(backup.exercises ?? []);
+    await db.body.bulkPut(backup.body ?? []);
+  });
+}
+
+/**
+ * Svuota tutte le tabelle con delete() espliciti (non clear()):
+ * così le cancellazioni vengono tracciate e arrivano anche al cloud.
+ */
+export async function wipeTables(): Promise<void> {
+  await db.transaction('rw', [db.plans, db.sessions, db.exercises, db.body], async () => {
+    await db.plans.bulkDelete(await db.plans.toCollection().primaryKeys());
+    await db.sessions.bulkDelete(await db.sessions.toCollection().primaryKeys());
+    await db.exercises.bulkDelete(await db.exercises.toCollection().primaryKeys());
+    await db.body.bulkDelete(await db.body.toCollection().primaryKeys());
   });
 }
 
@@ -103,4 +126,25 @@ export function importPlansFromJson(text: string): Plan[] {
   const list = isObj(data) && Array.isArray(data.plans) ? data.plans : Array.isArray(data) ? data : [data];
   if (list.length === 0) throw new Error('Nessuna scheda trovata nel file.');
   return list.map((p, i) => sanitizePlan(p, `scheda #${i + 1}`, false));
+}
+
+function sanitizeMeta(e: unknown): ExerciseMeta | null {
+  if (!isObj(e) || typeof e.key !== 'string' || !e.key) return null;
+  const muscle = parseMuscle(e.muscle);
+  return {
+    key: e.key,
+    name: typeof e.name === 'string' ? e.name : e.key,
+    ...(muscle ? { muscle } : {}),
+    ...(e.muscleAsked ? { muscleAsked: true } : {}),
+  };
+}
+
+function sanitizeBody(b: unknown): BodyEntry | null {
+  if (!isObj(b) || typeof b.date !== 'number') return null;
+  const out: BodyEntry = { id: typeof b.id === 'string' ? b.id : uid(), date: b.date };
+  for (const f of BODY_FIELDS) {
+    const v = Number(b[f]);
+    if (b[f] != null && Number.isFinite(v) && v > 0) out[f] = v;
+  }
+  return out;
 }
