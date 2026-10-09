@@ -1,6 +1,6 @@
 /** ID univoco. crypto.randomUUID non esiste su http (es. test da LAN), quindi fallback. */
 export function uid(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' && isSecureContext) {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
   }
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
