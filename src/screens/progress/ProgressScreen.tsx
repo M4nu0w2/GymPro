@@ -2,7 +2,8 @@ import { Suspense, lazy, useMemo, useState } from 'react';
 import { MonthCalendar } from '../../components/Calendar';
 import { IconCalendar, IconChart, IconChevronLeft, IconChevronRight, IconFlame, IconTrophy } from '../../components/Icons';
 import { Card, EmptyState, Group, IconButton, Row, Screen, Segmented } from '../../components/ui';
-import { useDoneSessions } from '../../hooks/useData';
+import { useDoneSessions, usePlans } from '../../hooks/useData';
+import { planStreak, weekGoal } from '../../lib/schedule';
 import { MUSCLE_LABEL, UNASSIGNED_LABEL, useMuscleMap } from '../../lib/exercises';
 import {
   addDays,
@@ -13,7 +14,6 @@ import {
   sessionVolume,
   startOfWeek,
   trainingDays,
-  weekStreak,
   weeklyVolumeByMuscle,
 } from '../../lib/stats';
 import { cn, fmtDate, fmtDuration, fmtKg, fmtVolume } from '../../lib/utils';
@@ -183,6 +183,7 @@ function StatsPanel({
   onOpenSession: (id: string) => void;
 }) {
   const muscles = useMuscleMap();
+  const plans = usePlans();
   const [week, setWeek] = useState(() => startOfWeek(Date.now()));
   const days = useMemo(() => trainingDays(sessions), [sessions]);
   const volume = useMemo(() => weeklyVolumeByMuscle(sessions, week, (k) => muscles?.get(k)), [sessions, week, muscles]);
@@ -207,7 +208,7 @@ function StatsPanel({
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-3 gap-2.5 px-4">
-        <Tile icon={<IconFlame size={18} />} value={weekStreak(sessions)} label="settimane di fila" gold />
+        <Tile icon={<IconFlame size={18} />} value={planStreak(sessions, weekGoal(plans ?? [])).weeks} label="settimane di fila" gold />
         <Tile icon={<IconCalendar size={18} />} value={dayStreak(days)} label="giorni di fila" />
         <Tile icon={<IconChart size={18} />} value={sessions.length} label="allenamenti" />
       </div>

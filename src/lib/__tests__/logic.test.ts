@@ -17,6 +17,7 @@ import {
   weeklyVolumeByMuscle,
 } from '../stats';
 import { suggestNextPlan } from '../plans';
+import { assignDay, planStreak, weekGoal, weekSchedule } from '../schedule';
 import { SHARE_PARAM, decodePlan, encodePlan, extractShareCode } from '../share';
 import { normalizeName, parseNum } from '../utils';
 import {
@@ -262,6 +263,40 @@ describe('streak, record, suggerimento', () => {
     expect(weekStreak(weeks, day('2026-03-05'))).toBe(3);
     expect(weekStreak(weeks, day('2026-03-10'))).toBe(3);
     expect(weekStreak(weeks, day('2026-03-17'))).toBe(0);
+  });
+  it('streak con planning: conta le settimane con l’obiettivo raggiunto, in qualunque giorno', () => {
+    const at = (d: string, weekGoal?: number) => session({ startedAt: day(d), weekGoal });
+    // settimana del 23/2: 3 su 3 (lun, mar, sab: il riposo di mercoledì non conta)
+    // settimana del 2/3: 3 su 3
+    const ss = [at('2026-02-23', 3), at('2026-02-24', 3), at('2026-02-28', 3), at('2026-03-02', 3), at('2026-03-03', 3), at('2026-03-05', 3)];
+    // in corso (9/3): ancora nessun allenamento, la serie resta viva
+    expect(planStreak(ss, 3, day('2026-03-10'))).toEqual({ weeks: 2, done: 0, goal: 3 });
+    // settimana in corso completata: conta anche lei
+    const now = [...ss, at('2026-03-09', 3), at('2026-03-10', 3), at('2026-03-11', 3)];
+    expect(planStreak(now, 3, day('2026-03-11')).weeks).toBe(3);
+    // una settimana passata sotto l'obiettivo interrompe la serie
+    expect(planStreak(ss.filter((_, i) => i !== 4), 3, day('2026-03-10')).weeks).toBe(0);
+    // l'obiettivo vale per la settimana in cui era in vigore: alzarlo non riscrive il passato
+    expect(planStreak(ss, 5, day('2026-03-10')).weeks).toBe(2);
+    // sessioni senza planning: basta un allenamento a settimana
+    expect(planStreak([at('2026-02-25'), at('2026-03-03')], 0, day('2026-03-10')).weeks).toBe(2);
+  });
+  it('planning: un giorno ha una sola scheda e l’obiettivo conta i giorni', async () => {
+    await db.plans.clear();
+    await db.sessions.clear();
+    const mk = (id: string): Plan => ({ id, name: id, exercises: [{ id: 'e', name: 'Panca', sets: 3, reps: '8', restSec: 90 }], createdAt: 1, updatedAt: 1 });
+    await db.plans.bulkPut([mk('push'), mk('pull')]);
+    await assignDay(0, 'push');
+    await assignDay(2, 'pull');
+    await assignDay(4, 'push');
+    await assignDay(2, 'push');
+    let s = weekSchedule(await db.plans.toArray());
+    expect(s.map((p) => p?.id ?? null)).toEqual(['push', null, 'push', null, 'push', null, null]);
+    await assignDay(2, null);
+    s = weekSchedule(await db.plans.toArray());
+    expect(s[2]).toBeNull();
+    expect(weekGoal(await db.plans.toArray())).toBe(2);
+    expect((await startWorkout((await db.plans.get('push'))!)).weekGoal).toBe(2);
   });
   it('prTimeline e record live', () => {
     const a = session({ id: 'a', startedAt: 1, sets: [set({ weight: 60, reps: 8 })] });

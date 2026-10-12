@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
+  IconCalendar,
   IconCopy,
   IconDownload,
   IconEdit,
@@ -13,6 +14,8 @@ import {
 } from '../../components/Icons';
 import { Button, Card, EmptyState, IconButton, Row, RowIcon, Screen, Sheet } from '../../components/ui';
 import { useFeedback } from '../../components/Feedback';
+import { WeekPlanSheet } from '../../components/WeekPlanSheet';
+import { weekGoal } from '../../lib/schedule';
 import { useDoneSessions, usePlans } from '../../hooks/useData';
 import { db } from '../../db';
 import { CSV_TEMPLATE } from '../../lib/csv';
@@ -30,7 +33,9 @@ export function PlansScreen({ onStart, activePlanId }: { onStart: (p: Plan) => v
   const [menuFor, setMenuFor] = useState<Plan | null>(null);
   const [sharing, setSharing] = useState<Plan | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [planOpen, setPlanOpen] = useState(false);
   const { confirm, toast } = useFeedback();
+  const goal = weekGoal(plans ?? []);
 
   const lastDone = useMemo(() => {
     const m = new Map<string, number>();
@@ -47,6 +52,7 @@ export function PlansScreen({ onStart, activePlanId }: { onStart: (p: Plan) => v
       id: uid(),
       name: `${p.name} (copia)`,
       exercises: p.exercises.map((e) => ({ ...e, id: uid() })),
+      days: undefined, // la copia non eredita i giorni del planning
       createdAt: now,
       updatedAt: now,
     });
@@ -103,6 +109,17 @@ export function PlansScreen({ onStart, activePlanId }: { onStart: (p: Plan) => v
               </div>
             }
           />
+        )}
+
+        {(plans?.length ?? 0) > 0 && (
+          <div className="overflow-hidden rounded-[22px] bg-surface">
+            <Row
+              icon={<RowIcon><IconCalendar size={17} /></RowIcon>}
+              title="Planning settimanale"
+              value={goal ? `${goal} a settimana` : 'Non impostato'}
+              onClick={() => setPlanOpen(true)}
+            />
+          </div>
         )}
 
         {plans?.map((p, i) => (
@@ -179,6 +196,7 @@ export function PlansScreen({ onStart, activePlanId }: { onStart: (p: Plan) => v
       {editing && <PlanEditor plan={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
       <ImportSheet open={importOpen} onClose={() => setImportOpen(false)} existing={plans ?? []} onTemplate={downloadTemplate} />
       <ShareSheet plan={sharing} onClose={() => setSharing(null)} />
+      <WeekPlanSheet open={planOpen} onClose={() => setPlanOpen(false)} />
     </Screen>
   );
 }

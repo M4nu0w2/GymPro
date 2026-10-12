@@ -19,6 +19,8 @@ export interface Plan {
   name: string;
   description?: string;
   exercises: PlanExercise[];
+  /** Giorni della settimana in cui è pianificata (0 = lunedì … 6 = domenica) */
+  days?: number[];
   createdAt: number;
   /** Ultima modifica (ms): usato anche per la sincronizzazione "ultima modifica vince" */
   updatedAt: number;
@@ -69,6 +71,8 @@ export interface Session {
   /** Chiavi degli esercizi con almeno una serie (indice multi-entry) */
   exerciseKeys: string[];
   ui?: SessionUiState;
+  /** Allenamenti pianificati a settimana quando è iniziata (obiettivo storico della streak) */
+  weekGoal?: number;
   /** Ultima modifica (ms), per la sincronizzazione */
   updatedAt?: number;
 }

@@ -54,11 +54,14 @@ export function sanitizePlan(p: unknown, label: string, keepId = true): Plan {
     };
   });
   const now = Date.now();
+  // i giorni del planning valgono solo ripristinando un backup, non importando schede
+  const days = keepId && Array.isArray(p.days) ? [...new Set(p.days.map(Number).filter((d) => Number.isInteger(d) && d >= 0 && d < 7))] : [];
   return {
     id: keepId && typeof p.id === 'string' ? p.id : uid(),
     name: p.name.trim() || 'Scheda',
     ...(typeof p.description === 'string' && p.description ? { description: p.description } : {}),
     exercises,
+    ...(days.length ? { days } : {}),
     createdAt: Number(p.createdAt) || now,
     updatedAt: Number(p.updatedAt) || now,
   };

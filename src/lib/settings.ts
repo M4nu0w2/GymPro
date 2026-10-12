@@ -11,15 +11,18 @@ export interface Settings {
   progression: boolean;
   /** kg proposti in più quando la progressione è guadagnata */
   progressionStep: number;
+  /** Versione dello schema impostazioni, per le migrazioni */
+  v: number;
 }
 
 const DEFAULTS: Settings = {
   theme: 'system',
   sound: true,
   countdownTicks: true,
-  weightStep: 2.5,
+  weightStep: 1,
   progression: true,
-  progressionStep: 2.5,
+  progressionStep: 1,
+  v: 2,
 };
 const KEY = 'gympro.settings';
 const listeners = new Set<() => void>();
@@ -31,6 +34,12 @@ function load(): Settings {
     const saved = JSON.parse(raw) as Partial<Settings>;
     // Impostazioni della versione precedente (tema scuro forzato): ora il tema segue il sistema
     if (!('progression' in saved)) saved.theme = 'system';
+    // v2: il passo predefinito passa da 2,5 a 1 kg
+    if (!saved.v || saved.v < 2) {
+      if (saved.weightStep === 2.5) saved.weightStep = 1;
+      if (saved.progressionStep === 2.5) saved.progressionStep = 1;
+      saved.v = 2;
+    }
     return { ...DEFAULTS, ...saved };
   } catch {
     return DEFAULTS;

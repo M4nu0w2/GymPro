@@ -89,6 +89,7 @@ export function PlanEditor({ plan, onClose }: { plan: Plan | null; onClose: () =
         reps: cleanReps(e.reps),
         notes: e.notes?.trim() || undefined,
       })),
+      ...(plan?.days?.length ? { days: plan.days } : {}),
       createdAt: plan?.createdAt ?? now,
       updatedAt: now,
     };

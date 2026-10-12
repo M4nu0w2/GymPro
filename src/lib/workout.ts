@@ -1,5 +1,6 @@
 import { db } from '../db';
 import type { Plan, Session, SetLog } from '../types';
+import { weekGoal } from './schedule';
 import { normalizeName, targetRepsMax, targetRepsMin, uid } from './utils';
 
 export function withSets(session: Session, sets: SetLog[]): Session {
@@ -13,6 +14,7 @@ export async function getActiveSession(): Promise<Session | undefined> {
 export async function startWorkout(plan: Plan): Promise<Session> {
   const existing = await getActiveSession();
   if (existing) return existing;
+  const goal = weekGoal(await db.plans.toArray());
   const session: Session = {
     id: uid(),
     planId: plan.id,
@@ -30,6 +32,7 @@ export async function startWorkout(plan: Plan): Promise<Session> {
     sets: [],
     exerciseKeys: [],
     ui: { exIndex: 0, restEndsAt: null, restTotalSec: 0 },
+    ...(goal ? { weekGoal: goal } : {}),
   };
   await db.sessions.add(session);
   return session;

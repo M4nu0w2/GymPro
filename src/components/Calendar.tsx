@@ -6,10 +6,11 @@ import { IconButton } from './ui';
 
 const WEEKDAYS = ['L', 'M', 'M', 'G', 'V', 'S', 'D'];
 
-/** Settimana corrente (lun-dom) con i giorni allenati */
-export function WeekStrip({ days, now = Date.now() }: { days: Set<string>; now?: number }) {
+/** Settimana corrente (lun-dom) con i giorni allenati e, se c'è un planning, la scheda prevista */
+export function WeekStrip({ days, planned, now = Date.now() }: { days: Set<string>; planned?: (string | null)[]; now?: number }) {
   const start = startOfWeek(now);
   const today = dayKey(now);
+  const hasPlan = planned?.some(Boolean);
   return (
     <div className="grid grid-cols-7 gap-1">
       {WEEKDAYS.map((w, i) => {
@@ -18,18 +19,32 @@ export function WeekStrip({ days, now = Date.now() }: { days: Set<string>; now?:
         const done = days.has(k);
         const isToday = k === today;
         const future = ts > startOfDay(now);
+        const plan = planned?.[i];
         return (
-          <div key={i} className="flex flex-col items-center gap-1.5">
+          <div key={i} className="flex min-w-0 flex-col items-center gap-1.5">
             <span className={cn('text-[11px] font-semibold', isToday ? 'text-accent' : 'text-muted')}>{w}</span>
             <span
-              aria-label={`${new Date(ts).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric' })}${done ? ', allenato' : ''}`}
+              aria-label={`${new Date(ts).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric' })}${plan ? `, in programma ${plan}` : ''}${done ? ', allenato' : ''}`}
               className={cn(
                 'num flex h-8 w-8 items-center justify-center rounded-full text-[14px] font-semibold transition-colors',
-                done ? 'bg-accent text-accent-ink' : isToday ? 'ring-[1.5px] ring-accent text-fg' : future ? 'text-faint' : 'bg-surface-2 text-muted',
+                done
+                  ? 'bg-accent text-accent-ink'
+                  : isToday
+                    ? 'ring-[1.5px] ring-accent text-fg'
+                    : plan
+                      ? 'text-fg-2 outline-[1.5px] -outline-offset-[1.5px] outline-faint outline-dashed'
+                      : future
+                        ? 'text-faint'
+                        : 'bg-surface-2 text-muted',
               )}
             >
               {new Date(ts).getDate()}
             </span>
+            {hasPlan && (
+              <span aria-hidden className={cn('w-full truncate text-center text-[10px] leading-none font-medium', done ? 'text-accent' : 'text-muted')}>
+                {plan ?? ' '}
+              </span>
+            )}
           </div>
         );
       })}

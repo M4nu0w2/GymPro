@@ -14,8 +14,10 @@ import { Button, Card, Row, Screen, SectionTitle, Sheet } from '../../components
 import { useDoneSessions, usePlans } from '../../hooks/useData';
 import { useNow } from '../../hooks/useNow';
 import { MUSCLE_LABEL, useMuscleMap } from '../../lib/exercises';
+import { WeekPlanSheet } from '../../components/WeekPlanSheet';
 import { suggestNextPlan } from '../../lib/plans';
-import { addDays, dayStreak, prTimeline, sessionVolume, startOfWeek, trainingDays, weekStreak } from '../../lib/stats';
+import { planStreak, weekSchedule, weekdayOf } from '../../lib/schedule';
+import { addDays, dayKey, prTimeline, sessionVolume, startOfWeek, trainingDays } from '../../lib/stats';
 import { useSync } from '../../lib/sync';
 import { cn, fmtClock, fmtDate, fmtKg, fmtVolume, normalizeName } from '../../lib/utils';
 import type { Plan, Session } from '../../types';
@@ -38,6 +40,7 @@ export function HomeScreen({
   const muscles = useMuscleMap();
   const sync = useSync();
   const [pickOpen, setPickOpen] = useState(false);
+  const [planOpen, setPlanOpen] = useState(false);
   const [chosen, setChosen] = useState<string | null>(null);
   const [inviteDismissed, setInviteDismissed] = useState(() => {
     try {
@@ -47,8 +50,14 @@ export function HomeScreen({
     }
   });
 
+  const schedule = useMemo(() => weekSchedule(plans ?? []), [plans]);
+  const goal = schedule.filter(Boolean).length;
+  // La scheda in programma oggi ha la precedenza sulla rotazione, finché non è stata fatta
+  const todayPlan = schedule[weekdayOf(Date.now())];
+  const todayDone = !!todayPlan && !!sessions?.some((s) => s.planId === todayPlan.id && dayKey(s.startedAt) === dayKey(Date.now()));
+  const plannedToday = todayPlan && !todayDone ? todayPlan : null;
   const suggested = useMemo(() => (plans && sessions ? suggestNextPlan(plans, sessions) : null), [plans, sessions]);
-  const next = (chosen && plans?.find((p) => p.id === chosen)) || suggested;
+  const next = (chosen && plans?.find((p) => p.id === chosen)) || plannedToday || suggested;
 
   const stats = useMemo(() => {
     const list = sessions ?? [];
@@ -70,8 +79,10 @@ export function HomeScreen({
       .flatMap(([id, hits]) => hits.map((h) => ({ ...h, sessionId: id })))
       .sort((a, b) => b.set.timestamp - a.set.timestamp)
       .slice(0, 3);
-    return { days, weeks: weekStreak(list), dayStreak: dayStreak(days), vol, prevVol, sets, count, prs };
-  }, [sessions]);
+    return { days, streak: planStreak(list, goal), vol, prevVol, sets, count, prs };
+  }, [sessions, goal]);
+  const { streak } = stats;
+  const weekMet = streak.done >= Math.max(1, goal);
 
   const lastDone = (planId: string) => sessions?.find((s) => s.planId === planId)?.startedAt;
   const showInvite = sync.configured && sync.ready && !sync.user && !inviteDismissed;
@@ -88,7 +99,9 @@ export function HomeScreen({
             <div aria-hidden className="pointer-events-none absolute -top-24 -right-20 h-56 w-56 rounded-full bg-accent opacity-[0.16] blur-3xl" />
             <div className="relative">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-[13px] font-semibold tracking-wide text-accent uppercase">Prossimo allenamento</p>
+                <p className="text-[13px] font-semibold tracking-wide text-accent uppercase">
+                  {next.id === plannedToday?.id ? 'In programma oggi' : 'Prossimo allenamento'}
+                </p>
                 {(plans?.length ?? 0) > 1 && (
                   <button type="button" onClick={() => setPickOpen(true)} className="tap -mr-1 rounded-full px-2 py-1 text-[15px] font-semibold text-accent">
                     Cambia
@@ -149,20 +162,35 @@ export function HomeScreen({
         {/* Streak + settimana */}
         <Card className="p-4">
           <div className="mb-4 flex items-center gap-3">
-            <span className={cn('flex h-11 w-11 items-center justify-center rounded-full', stats.weeks > 0 ? 'bg-gold-soft text-gold' : 'bg-surface-2 text-muted')}>
+            <span className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-full', streak.weeks > 0 ? 'bg-gold-soft text-gold' : 'bg-surface-2 text-muted')}>
               <IconFlame size={24} />
             </span>
             <div className="min-w-0 flex-1">
               <p className="rounded-num text-[22px] leading-tight font-bold">
-                {stats.weeks} {stats.weeks === 1 ? 'settimana' : 'settimane'}
+                {streak.weeks} {streak.weeks === 1 ? 'settimana' : 'settimane'}
               </p>
               <p className="text-[13px] text-muted">
-                di fila · {stats.dayStreak > 1 ? `${stats.dayStreak} giorni consecutivi · ` : ''}
-                {stats.count} {stats.count === 1 ? 'allenamento' : 'allenamenti'} questa settimana
+                {goal
+                  ? weekMet
+                    ? `obiettivo raggiunto · ${streak.done}/${goal} allenamenti`
+                    : `${streak.done}/${goal} allenamenti in programma`
+                  : `di fila · ${streak.done} ${streak.done === 1 ? 'allenamento' : 'allenamenti'} questa settimana`}
               </p>
             </div>
+            {(plans?.length ?? 0) > 0 && (
+              <button type="button" onClick={() => setPlanOpen(true)} className="tap -mr-1 shrink-0 self-start rounded-full px-2 py-1 text-[15px] font-semibold text-accent">
+                {goal ? 'Modifica' : 'Pianifica'}
+              </button>
+            )}
           </div>
-          <WeekStrip days={stats.days} />
+          {goal > 0 && (
+            <div className="mb-4 flex gap-1" aria-hidden>
+              {Array.from({ length: goal }, (_, i) => (
+                <span key={i} className={cn('h-1.5 flex-1 rounded-full transition-colors', i < streak.done ? 'bg-accent' : 'bg-surface-2')} />
+              ))}
+            </div>
+          )}
+          <WeekStrip days={stats.days} planned={schedule.map((p) => p?.name ?? null)} />
         </Card>
 
         {/* Volume settimanale */}
@@ -263,6 +291,7 @@ export function HomeScreen({
           ))}
         </div>
       </Sheet>
+      <WeekPlanSheet open={planOpen} onClose={() => setPlanOpen(false)} />
     </Screen>
   );
 }
